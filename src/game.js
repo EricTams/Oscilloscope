@@ -787,6 +787,17 @@ const COMMANDS = {
             }, 500);
         }
     },
+    'MOONTAXI': {
+        description: 'Space Taxi game (W=THRUST A/D=ROTATE)',
+        action: () => {
+            terminal.println('LAUNCHING MOON TAXI...');
+            terminal.println('W=THRUST  A/D=ROTATE  CTRL+C=QUIT');
+            terminal.println('LAND ON PLATFORMS TO PICK UP FARES');
+            setTimeout(() => {
+                enterDirectMode(moonTaxiGame, 'MOONTAXI');
+            }, 500);
+        }
+    },
     'ARTIFACTS': {
         description: 'Demo all visual artifacts',
         action: () => {
