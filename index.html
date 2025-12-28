@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Oscilloscope - Space Station Survival</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div id="game-container">
+        <div id="oscilloscope-frame">
+            <div id="oscilloscope-bezel">
+                <canvas id="oscilloscope-canvas"></canvas>
+                <div id="screen-overlay"></div>
+                <div id="fps-display">-- FPS</div>
+            </div>
+        </div>
+    </div>
+
+    <script src="src/config.js"></script>
+    <script src="src/shaders.js"></script>
+    <script src="src/rendering/webgl.js"></script>
+    <script src="src/rendering/vector_font.js"></script>
+    <script src="src/rendering/oscilloscope.js"></script>
+    <script src="src/programs/rocks.js"></script>
+    <script src="src/programs/status.js"></script>
+    <script src="src/game.js"></script>
+</body>
+</html>
+

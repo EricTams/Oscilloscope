@@ -1,0 +1,421 @@
+# Cursor Rules for Oscilloscope - Space Station Survival Puzzle Game
+# Adapted for Windows development in Cursor, targeting GitHub Pages deployment
+
+## Project Context
+- HTML5 puzzle game for web browsers
+- Target deployment: GitHub Pages
+- Development environment: Windows with Cursor IDE
+- Game type: Space station survival puzzle with oscilloscope-based UI
+- Player is stranded in life support, receiving all information through oscilloscope displays
+- Multiple puzzle types: signal analysis, resource management, logic puzzles
+- Raw WebGL2 for Shadertoy-style GLSL shader rendering
+- Oscilloscope is the PRIMARY UI - almost everything displayed through waveforms and vector graphics
+
+## 1. MUST Requirements
+
+### 1.1 Simplicity and Clarity
+MUST keep functions under 20 fucking lines whenever possible
+MUST use vanilla JavaScript over complex frameworks unless absolutely necessary
+MUST make game logic obvious with clear names and consistent patterns
+MUST start with the dumbest fucking thing that could possibly work
+MUST use raw WebGL2 for shader rendering (no Three.js abstraction layer)
+
+### 1.2 Explicit Design
+MUST pass all dependencies explicitly as parameters
+MUST make all game configuration values explicitly provided by caller or config
+MUST name all magic numbers (OXYGEN_DECAY_RATE not 0.01, SIGNAL_FREQUENCY not 440, PHOSPHOR_DECAY not 0.95)
+MUST return early to flatten logic and avoid deep nesting
+MUST define variables as close to their use as possible
+MUST use explicit event handling over global state
+
+### 1.3 Separation of Concerns
+MUST keep DOM UI (menus, dialogs) and shader rendering completely separate
+MUST separate puzzle logic from visualization logic completely
+MUST separate input handling from puzzle state changes
+MUST encapsulate individual game features into tiny fucking classes
+MUST use separate files for separate concerns (webgl.js, puzzles/, systems/)
+MUST use separate functions for separate concerns
+MUST isolate shader uniform updates from game state calculations
+
+### 1.4 Failure Handling
+MUST crash immediately with clear error message when shader fails to compile
+MUST crash loudly and early in development when something's wrong
+MUST crash fast rather than hide bugs with fallbacks
+MUST crash with an error message for WebGL context loss or missing extensions
+MUST validate shader uniforms exist before setting them
+
+### 1.5 Data and State Management
+MUST use real game state and real signal data only
+MUST wait until the exact moment something is needed to implement it
+MUST delete code immediately when it's no longer being used
+MUST use pure functions for signal generation whenever possible
+MUST minimize mutable state and isolate what remains
+MUST use immutable puzzle configurations once loaded
+
+### 1.6 Development Process
+MUST test the game in browser after making changes
+MUST use browser dev tools for debugging (especially WebGL inspector)
+MUST validate HTML/CSS/JS/GLSL syntax after changes
+MUST test puzzle interactions after each change
+MUST ensure game works on GitHub Pages deployment
+
+### 1.7 HTML5 Game Specific
+MUST use semantic HTML structure
+MUST implement proper game loop with requestAnimationFrame
+MUST handle window resize events properly (update iResolution uniform)
+MUST use relative paths for assets (GitHub Pages compatibility)
+MUST implement proper keyboard/mouse input handling
+MUST use CSS for minimal styling, shaders for game visuals
+MUST use JavaScript files (.js) for configuration data, NOT JSON files
+MUST avoid fetch() for local resources (CORS blocks file:// protocol)
+MUST ensure game works when opened directly from file system (double-click HTML)
+
+### 1.8 CRITICAL - WebGL Shader System (Shadertoy-style)
+MUST use raw WebGL2 for full shader control (no abstraction libraries)
+MUST follow Shadertoy uniform conventions (iTime, iResolution, iMouse, fragCoord)
+MUST render to a single fullscreen quad (all visuals in fragment shader)
+MUST support multiple render passes for post-processing (CRT, phosphor glow)
+MUST pass game state to shaders via custom uniforms
+MUST handle WebGL context loss gracefully (attempt recovery)
+MUST compile shaders at startup and cache programs
+MUST provide clear shader compilation error messages with line numbers
+This ensures maximum visual flexibility with Shadertoy-compatible workflow
+
+### 1.9 CRITICAL - Oscilloscope Visual System
+MUST render all game information as oscilloscope-style graphics
+MUST support multiple signal types (sine, square, sawtooth, noise, composite)
+MUST implement phosphor persistence/decay for authentic CRT feel
+MUST encode game state visually (oxygen as amplitude, power as frequency, etc.)
+MUST render text as vector strokes on oscilloscope display
+MUST support Lissajous patterns for 2D signal visualization
+MUST implement scanline and CRT curvature effects
+The oscilloscope IS the game interface - make it feel like real hardware
+
+## 2. NEVER Requirements
+
+### 2.1 Complexity and Abstractions
+NEVER implement anything until it's actually fucking needed (YAGNI)
+NEVER add game engine abstractions until you have 3+ real use cases
+NEVER implement features "for later"
+NEVER add unused parameters, methods, or game objects
+NEVER use clever syntax when simple will do
+NEVER couple shader rendering with puzzle logic
+
+### 2.2 Defensive Programming
+NEVER write fallback code or default values for shader sources
+NEVER write code like "if (shader == null) { useBasicShader() }"
+NEVER write "// Shouldn't happen, but just in case"
+NEVER silently recover from shader compilation errors
+NEVER hide WebGL errors with placeholder rendering
+
+### 2.3 Hardcoded Values
+NEVER hardcode default values in constructors or functions
+NEVER assume "reasonable defaults" - make the caller fucking decide
+NEVER use magic numbers for signal parameters, decay rates, or thresholds
+NEVER hardcode fallback values for game state
+NEVER write sample puzzle data or placeholder implementations
+
+### 2.4 Bad Practices
+NEVER maintain legacy codepaths
+NEVER keep code that isn't actively being used
+NEVER mock game state data
+NEVER write placeholder or memory implementations
+NEVER reach into global variables instead of explicit parameters
+NEVER commit API keys or secrets to the codebase
+NEVER use inline styles or scripts in HTML
+
+### 2.5 Code Smells
+NEVER allow change amplification (tiny feature touches many files)
+NEVER create high cognitive load (huge mental map required)
+NEVER leave unknown unknowns (unsure what must change)
+NEVER use shared mutable state between unrelated components
+NEVER create deep dependencies between shaders and puzzle systems
+NEVER stack if/else/switch into spaghetti control flow
+
+### 2.6 HTML5 Game Specific
+NEVER use global variables for game state
+NEVER mix shader code with DOM manipulation
+NEVER use setTimeout/setInterval for game loops
+NEVER hardcode absolute paths for assets
+NEVER ignore browser compatibility issues
+NEVER use deprecated WebGL APIs (stick to WebGL2)
+NEVER use fetch() or XMLHttpRequest for loading local config/data files
+NEVER create JSON config files that require fetch (causes CORS errors)
+
+### 2.7 CRITICAL - State Management Anti-patterns
+NEVER update game state inside render functions
+NEVER let shader uniforms get out of sync with game state
+NEVER modify puzzle state from multiple places
+NEVER store transient render data in persistent game state
+NEVER couple survival system timers to frame rate
+Game state flows one direction: Input → State → Uniforms → Shaders
+
+## 3. File Organization
+```
+index.html                 - Main game page (minimal, just canvas + script tags)
+src/
+  game.js                  - Core game controller, state machine
+  game_loop.js             - requestAnimationFrame loop management
+  input.js                 - Keyboard/mouse input handling
+  config.js                - Game configuration constants
+  
+  rendering/
+    webgl.js               - WebGL2 context setup, shader compilation utilities
+    shader_manager.js      - Load shaders, compile programs, manage uniforms
+    oscilloscope.js        - Oscilloscope display state and signal generation
+    post_processing.js     - Multi-pass rendering for CRT effects
+    
+  puzzles/
+    puzzle_base.js         - Base puzzle interface/contract
+    signal_puzzle.js       - Frequency matching, waveform analysis puzzles
+    resource_puzzle.js     - Power/oxygen balancing puzzles
+    logic_puzzle.js        - Wire routing, sequence decoding puzzles
+    puzzle_manager.js      - Puzzle loading, progression, completion tracking
+    
+  systems/
+    life_support.js        - Oxygen, temperature, pressure management
+    power.js               - Power generation and distribution
+    station_events.js      - Random failures, alerts, interruptions
+    survival.js            - Overall survival state, game over conditions
+    
+  audio/
+    audio.js               - Web Audio API setup, ambient sound
+    signal_generator.js    - Generate audio waveforms matching oscilloscope
+    
+shaders/
+  common.glsl              - Shared GLSL functions (noise, SDF, utilities)
+  vertex.glsl              - Simple fullscreen quad vertex shader
+  oscilloscope.frag        - Main oscilloscope waveform rendering
+  crt.frag                 - CRT screen effect (curvature, scanlines, vignette)
+  phosphor.frag            - Phosphor glow and decay persistence
+  composite.frag           - Final compositing pass
+  
+assets/
+  sounds/                  - Ambient audio, alert sounds, UI feedback
+  
+css/
+  style.css                - Minimal styling (canvas fullscreen, loading states)
+
+Imagine/                   - AI asset generation tool (existing)
+```
+
+## 4. GitHub Pages Considerations
+- Use relative paths for all assets
+- Ensure game works without server-side processing
+- Test game in incognito mode to verify no local dependencies
+- Use HTTPS-compatible APIs only
+- Shader files should be embedded in JS or loaded via script tags (no fetch)
+- Keep total asset size reasonable for web delivery
+
+## 5. Windows/Cursor Specific
+- Use forward slashes in paths for cross-platform compatibility
+- Test game in multiple browsers (Chrome, Firefox, Edge)
+- Use Cursor's built-in terminal for any build processes
+- Leverage Cursor's IntelliSense for JavaScript development
+- Use Cursor's file explorer for asset management
+- MUST use PowerShell syntax for terminal commands (NOT bash)
+- NEVER use `&&` for command chaining (PowerShell uses `;` or separate commands)
+- Use PowerShell-native commands (New-Item, Copy-Item, etc.) when appropriate
+
+## 5.1 Testing the Game in Browser
+
+### Starting a Local Web Server
+The game requires a local HTTP server due to browser security restrictions.
+
+**Start the server:**
+```powershell
+python -m http.server 8080
+```
+IMPORTANT: Use the `working_directory` parameter in Shell tool calls instead of `cd && command` (PowerShell doesn't support `&&`).
+
+**Navigate to:** `http://localhost:8080`
+
+### Browser Caching Issues
+Browsers aggressively cache JavaScript and shader files. After code changes:
+1. **Hard refresh:** Ctrl+Shift+R (or Cmd+Shift+R on Mac)
+2. **Or** add a cache-busting query param: `http://localhost:8080?v=2`
+3. **Or** restart the HTTP server (kill python.exe, start new server)
+
+When testing via browser automation, if code changes don't appear:
+- The `location.reload(true)` may not bust cache
+- Navigate to a URL with a new query param like `?v=3`
+- Or inject the updated code directly via `browser_evaluate`
+
+### In-Game Controls
+| Keys | Action |
+|------|--------|
+| **Arrow Keys / WASD** | Navigate menus, adjust values |
+| **Enter / Space** | Confirm selection, interact |
+| **Escape** | Back, pause, cancel |
+| **Mouse** | Click oscilloscope elements, drag sliders |
+| **Number Keys** | Quick-select puzzle options |
+
+### Testing Checklist
+1. Verify WebGL2 context initializes without errors
+2. Check that shaders compile (look for errors in console)
+3. Verify oscilloscope waveforms render correctly
+4. Test puzzle interactions respond to input
+5. Verify survival systems update over time
+6. Check CRT post-processing effects render
+7. Test window resize maintains aspect ratio
+8. Verify game state persists correctly
+
+### Browser Automation Notes
+When using browser tools to test:
+- WebGL requires canvas to be visible - ensure no overlays block it
+- Use `browser_evaluate` to directly inspect game state
+- Example: `Game.state.oxygen` to check survival values
+- Example: `ShaderManager.getUniform('iTime')` to verify shader state
+
+## 6. Oscilloscope Display Design
+AIDEV-NOTE: The oscilloscope is the player's window into the space station
+
+### Visual Encoding System
+- **Amplitude** → Resource levels (oxygen, power reserves)
+- **Frequency** → System status (normal, warning, critical)
+- **Waveform shape** → Information type (sine=life support, square=power, sawtooth=alerts)
+- **Phase/Lissajous** → Multi-dimensional data (X-Y plots for complex status)
+- **Noise level** → System damage or interference
+- **Color tint** → Urgency (green=safe, amber=caution, red=danger)
+
+### Display Modes
+- **Single trace** - One signal, time-domain view (classic oscilloscope)
+- **Dual trace** - Compare two signals (e.g., input vs expected)
+- **X-Y mode** - Lissajous patterns for 2D visualization
+- **Spectrum** - Frequency domain for signal analysis puzzles
+- **Vector text** - Messages rendered as connected line segments
+
+### Authentic CRT Feel
+- Phosphor glow with decay persistence (trails on fast signals)
+- Slight screen curvature distortion
+- Scanline effect (subtle, not overwhelming)
+- Vignette darkening at edges
+- Occasional flicker on power fluctuations
+- Beam bloom on bright signals
+
+## 7. Puzzle System Design
+AIDEV-NOTE: All puzzles should feel like operating real equipment
+
+### Signal Analysis Puzzles
+- Match a target frequency by adjusting oscillator
+- Identify waveform type from visual pattern
+- Decode morse code or binary from signal
+- Filter noise to reveal hidden signal
+- Phase-align two signals for communication lock
+
+### Resource Management Puzzles
+- Balance power distribution across systems
+- Optimize oxygen flow between compartments
+- Prioritize systems during power shortage
+- Route coolant through overheating components
+- Manage backup battery charge cycles
+
+### Logic Puzzles
+- Trace wire paths on circuit diagrams
+- Input correct sequences from decoded messages
+- Diagnose system failures from symptom patterns
+- Reroute signals through damaged pathways
+- Calibrate sensors with reference signals
+
+### Puzzle State Structure
+```javascript
+// Example puzzle state
+{
+  type: 'signal_match',
+  targetFrequency: 440,
+  targetAmplitude: 0.8,
+  targetWaveform: 'sine',
+  playerFrequency: 0,
+  playerAmplitude: 0.5,
+  tolerance: 0.05,
+  timeLimit: 60,        // seconds, null if untimed
+  completed: false,
+  attempts: 0
+}
+```
+
+## 8. Survival Mechanics
+AIDEV-NOTE: Survival creates urgency without being punishing
+
+### Life Support Systems
+- **Oxygen**: Depletes slowly, faster with exertion, replenished by completing puzzles
+- **Power**: Limited reserves, consumed by equipment, recharged by solar/generator puzzles
+- **Temperature**: Drifts toward extremes, managed by HVAC puzzles
+- **Hull Integrity**: Damaged by events, repaired by logic puzzles
+
+### Resource Interactions
+```
+Power → Oxygen recycler → Oxygen
+Power → Heating/Cooling → Temperature
+Power → Hull repair bots → Hull Integrity
+Oxygen ← affected by ← Hull breaches
+```
+
+### Difficulty Progression
+- Early game: Generous timers, single-system failures
+- Mid game: Multiple simultaneous issues, tighter margins
+- Late game: Cascading failures, minimal reserves, complex puzzles
+
+### Game Over Conditions
+- Oxygen reaches 0%
+- Temperature exceeds survivable range
+- Hull integrity fails completely
+- Power depleted with no recovery option
+
+### Feedback Through Oscilloscope
+- Declining resources → decreasing amplitude
+- Critical levels → signal distortion, noise
+- System failures → waveform corruption, static bursts
+- Recovery → clean signal restoration
+
+## 9. Shader Architecture
+AIDEV-NOTE: Shadertoy-compatible but with game state uniforms
+
+### Standard Uniforms (Shadertoy-compatible)
+```glsl
+uniform float iTime;           // Time in seconds
+uniform vec2 iResolution;      // Viewport resolution
+uniform vec4 iMouse;           // Mouse position and click state
+uniform int iFrame;            // Frame counter
+```
+
+### Game State Uniforms
+```glsl
+uniform float uOxygen;         // 0.0 to 1.0
+uniform float uPower;          // 0.0 to 1.0
+uniform float uTemperature;    // Normalized, 0.5 = normal
+uniform float uHullIntegrity;  // 0.0 to 1.0
+
+uniform float uSignalFreq;     // Current signal frequency
+uniform float uSignalAmp;      // Current signal amplitude
+uniform int uSignalType;       // 0=sine, 1=square, 2=saw, 3=noise
+
+uniform float uAlertLevel;     // 0=none, 1=warning, 2=critical
+uniform float uDamageNoise;    // 0.0 to 1.0, adds interference
+```
+
+### Render Pass Order
+1. **Oscilloscope pass** - Render waveforms to texture
+2. **Phosphor pass** - Blend with previous frame for persistence
+3. **CRT pass** - Apply screen curvature, scanlines, vignette
+4. **Composite pass** - Final output with color grading
+
+### Shader File Organization
+- `common.glsl` - Noise functions, SDF helpers, utility functions
+- `vertex.glsl` - Simple passthrough for fullscreen quad
+- `oscilloscope.frag` - Waveform generation and rendering
+- `phosphor.frag` - Temporal blending for glow trails
+- `crt.frag` - Screen effects (curvature, scanlines, bloom)
+- `composite.frag` - Final color grading and output
+
+## 10. Comment Markers
+Add specially formatted comments throughout the codebase, where appropriate, for yourself as inline knowledge that can be easily `grep`ped for.
+- Use `AIDEV-NOTE:`, `AIDEV-TODO:`, or `AIDEV-QUESTION:` as prefix as appropriate.
+- *Important:* Before scanning files, always first try to grep for existing `AIDEV-…`.
+- Update relevant anchors, after finishing any task.
+- Make sure to add relevant anchor comments, whenever a file or piece of code is:
+  * too complex, or
+  * very important, or
+  * could have a bug
+
+REMEMBER: The oscilloscope is your canvas. Every piece of information the player sees comes through waveforms, patterns, and phosphor glow. Keep the shader pipeline simple: fullscreen quad, fragment shader magic. Game state flows cleanly into uniforms. Make the survival feel tense but fair. The player should feel like they're actually operating failing space station equipment, squinting at a flickering CRT to stay alive.

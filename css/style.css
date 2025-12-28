@@ -1,0 +1,102 @@
+/* Oscilloscope - Space Station Survival
+   Minimal styling - the shaders do the heavy lifting */
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    background: #0a0a0a;
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-family: 'Courier New', monospace;
+    overflow: hidden;
+}
+
+#game-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 2rem;
+}
+
+#oscilloscope-frame {
+    /* The outer casing - will be arted up later */
+    background: linear-gradient(145deg, #2a2a2a 0%, #1a1a1a 50%, #0f0f0f 100%);
+    padding: 2rem;
+    border-radius: 1rem;
+    box-shadow: 
+        0 0 0 4px #333,
+        0 0 0 6px #1a1a1a,
+        0 10px 40px rgba(0, 0, 0, 0.8),
+        inset 0 2px 4px rgba(255, 255, 255, 0.05);
+}
+
+#oscilloscope-bezel {
+    /* Inner bezel around the screen */
+    position: relative;
+    background: #0a0a0a;
+    padding: 0.5rem;
+    border-radius: 0.5rem;
+    border: 3px solid #222;
+    box-shadow: 
+        inset 0 0 20px rgba(0, 0, 0, 0.9),
+        inset 0 0 5px rgba(0, 0, 0, 0.5);
+}
+
+#oscilloscope-canvas {
+    display: block;
+    width: 640px;
+    height: 480px;
+    border-radius: 4px;
+    /* Subtle screen curve illusion via CSS */
+    background: #001100;
+}
+
+#screen-overlay {
+    /* Glass reflection effect */
+    position: absolute;
+    top: 0.5rem;
+    left: 0.5rem;
+    right: 0.5rem;
+    bottom: 0.5rem;
+    border-radius: 4px;
+    pointer-events: none;
+    background: linear-gradient(
+        135deg,
+        rgba(255, 255, 255, 0.03) 0%,
+        transparent 50%,
+        rgba(0, 0, 0, 0.1) 100%
+    );
+}
+
+/* Error state styling */
+.webgl-error {
+    color: #ff4444;
+    background: #1a0000;
+    padding: 2rem;
+    text-align: center;
+    border-radius: 4px;
+}
+
+.webgl-error h2 {
+    margin-bottom: 1rem;
+}
+
+/* FPS counter */
+#fps-display {
+    position: absolute;
+    top: 0.75rem;
+    right: 0.75rem;
+    color: #00ff00;
+    font-family: 'Courier New', monospace;
+    font-size: 12px;
+    opacity: 0.7;
+    pointer-events: none;
+    text-shadow: 0 0 4px #00ff00;
+}
+
