@@ -21,3 +21,6 @@ __pycache__/
 # Build artifacts
 *.log
 
+# Secrets (API keys)
+src/secrets.js
+

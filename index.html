@@ -17,7 +17,47 @@
         </div>
     </div>
 
+    <!-- LLM Setup Overlay -->
+    <div id="llm-setup-overlay">
+        <div class="llm-setup-modal">
+            <!-- State: No key exists -->
+            <div id="llm-state-new">
+                <h2>OpenAI API Key</h2>
+                <p>Enter your OpenAI API key to enable AI-powered dialogue:</p>
+                
+                <input type="password" id="llm-api-key-input" class="llm-setup-input" 
+                       placeholder="sk-..." autocomplete="off" spellcheck="false">
+                
+                <p style="font-size: 12px; color: #666; margin-top: 0.5rem;">
+                    Your key is stored locally in your browser. Never shared.
+                </p>
+                
+                <div class="llm-setup-actions">
+                    <button id="llm-save-key" class="llm-setup-btn primary">Save Key</button>
+                    <button id="llm-skip" class="llm-setup-btn secondary">Skip - Continue Without LLM</button>
+                </div>
+            </div>
+            
+            <!-- State: Key already exists -->
+            <div id="llm-state-exists" style="display: none;">
+                <h2>AI Dialogue Ready</h2>
+                <p>An API key is configured. What would you like to do?</p>
+                
+                <div class="llm-setup-actions">
+                    <button id="llm-continue" class="llm-setup-btn primary">Continue with Key</button>
+                    <button id="llm-change-key" class="llm-setup-btn secondary">Change Key</button>
+                    <button id="llm-skip-existing" class="llm-setup-btn secondary">Continue Without LLM</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="src/config.js"></script>
+    <!-- LLM: secrets.js may not exist, so we handle the error gracefully -->
+    <script src="src/secrets.js" onerror="console.log('secrets.js not found - LLM features disabled')"></script>
+    <script src="src/prompts.js"></script>
+    <script src="src/llm.js"></script>
+    <script src="src/gamestate.js"></script>
     <script src="src/shaders.js"></script>
     <script src="src/rendering/webgl.js"></script>
     <script src="src/rendering/vector_font.js"></script>
@@ -25,6 +65,9 @@
     <script src="src/programs/rocks.js"></script>
     <script src="src/programs/status.js"></script>
     <script src="src/programs/moontaxi.js"></script>
+    <script src="src/programs/eliza.js"></script>
+    <script src="src/programs/chess_sorcerer.js"></script>
+    <script src="src/programs/chess_sorcerer_draw.js"></script>
     <script src="src/game.js"></script>
 </body>
 </html>

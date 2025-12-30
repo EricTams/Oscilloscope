@@ -798,6 +798,26 @@ const COMMANDS = {
             }, 500);
         }
     },
+    'ELIZA': {
+        description: 'Talk to stasis bay AI (requires LLM)',
+        action: () => {
+            terminal.println('CONNECTING TO STASIS BAY...');
+            setTimeout(() => {
+                enterDirectMode(elizaProgram, 'ELIZA');
+            }, 300);
+        }
+    },
+    'CHESS': {
+        description: 'Chess Sorcerer - play chess vs evil AI',
+        action: () => {
+            terminal.println('SUMMONING THE SORCERER...');
+            terminal.println('ARROWS=MOVE SPACE=SELECT D=DEBUG');
+            terminal.println('1-4=DIFFICULTY R=RESTART CTRL-C=QUIT');
+            setTimeout(() => {
+                enterDirectMode(chessSorcererGame, 'CHESS');
+            }, 500);
+        }
+    },
     'ARTIFACTS': {
         description: 'Demo all visual artifacts',
         action: () => {
@@ -899,6 +919,13 @@ function processCommand(input) {
 function initGame() {
     console.log('Initializing Oscilloscope Display...');
     
+    // Initialize LLM setup handlers (buttons, etc.)
+    LLM.initSetupHandlers();
+    
+    // Always show setup screen on startup - lets user choose to continue, change, or skip
+    console.log('Showing LLM setup screen');
+    LLM.showSetupScreen();
+    
     try {
         // Get canvas element
         const canvas = document.getElementById('oscilloscope-canvas');
@@ -951,9 +978,18 @@ function initGame() {
                 }
             }
             
+            // Ctrl+D for debug in Direct Mode (must prevent browser bookmark action)
+            if (e.ctrlKey && (e.key === 'd' || e.key === 'D')) {
+                e.preventDefault();
+                if (currentMode === MODE_DIRECT && directModeProgram && directModeProgram.copyDebugToClipboard) {
+                    directModeProgram.copyDebugToClipboard();
+                }
+                return;
+            }
+            
             // Direct Mode - forward to program
             if (currentMode === MODE_DIRECT && directModeProgram && directModeProgram.handleKey) {
-                directModeProgram.handleKey(e.key, true);
+                directModeProgram.handleKey(e.key, true, e);
                 e.preventDefault();
                 return;
             }
@@ -976,7 +1012,7 @@ function initGame() {
         // Key up for Direct Mode
         document.addEventListener('keyup', (e) => {
             if (currentMode === MODE_DIRECT && directModeProgram && directModeProgram.handleKey) {
-                directModeProgram.handleKey(e.key, false);
+                directModeProgram.handleKey(e.key, false, e);
             }
         });
         

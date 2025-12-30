@@ -100,3 +100,138 @@ body {
     text-shadow: 0 0 4px #00ff00;
 }
 
+/* LLM Setup Overlay */
+#llm-setup-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.9);
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+}
+
+.llm-setup-modal {
+    background: linear-gradient(145deg, #1a1a1a 0%, #0f0f0f 100%);
+    border: 2px solid #00ff00;
+    border-radius: 8px;
+    padding: 2rem;
+    max-width: 500px;
+    width: 90%;
+    box-shadow: 
+        0 0 20px rgba(0, 255, 0, 0.2),
+        0 0 40px rgba(0, 0, 0, 0.8);
+}
+
+.llm-setup-modal h2 {
+    color: #00ff00;
+    font-family: 'Courier New', monospace;
+    margin-bottom: 1.5rem;
+    text-align: center;
+    text-shadow: 0 0 10px rgba(0, 255, 0, 0.5);
+}
+
+.llm-setup-modal p {
+    color: #aaffaa;
+    font-family: 'Courier New', monospace;
+    font-size: 14px;
+    margin-bottom: 1rem;
+    line-height: 1.5;
+}
+
+.llm-setup-row {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.llm-setup-path {
+    flex: 1;
+    background: #0a0a0a;
+    border: 1px solid #333;
+    padding: 0.5rem 1rem;
+    color: #00ff00;
+    font-family: 'Courier New', monospace;
+    border-radius: 4px;
+}
+
+.llm-setup-code {
+    background: #0a0a0a;
+    border: 1px solid #333;
+    padding: 1rem;
+    color: #00ff00;
+    font-family: 'Courier New', monospace;
+    font-size: 13px;
+    border-radius: 4px;
+    margin-bottom: 1rem;
+    word-break: break-all;
+}
+
+.llm-setup-input {
+    width: 100%;
+    background: #0a0a0a;
+    border: 1px solid #00ff00;
+    padding: 0.75rem 1rem;
+    color: #00ff00;
+    font-family: 'Courier New', monospace;
+    font-size: 14px;
+    border-radius: 4px;
+    margin-bottom: 0.5rem;
+    box-sizing: border-box;
+}
+
+.llm-setup-input:focus {
+    outline: none;
+    box-shadow: 0 0 10px rgba(0, 255, 0, 0.3);
+}
+
+.llm-setup-input::placeholder {
+    color: #336633;
+}
+
+.llm-setup-btn {
+    background: #1a1a1a;
+    border: 1px solid #00ff00;
+    color: #00ff00;
+    font-family: 'Courier New', monospace;
+    padding: 0.5rem 1rem;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: all 0.2s;
+}
+
+.llm-setup-btn:hover {
+    background: #00ff00;
+    color: #0a0a0a;
+    box-shadow: 0 0 10px rgba(0, 255, 0, 0.5);
+}
+
+.llm-setup-btn.primary {
+    width: 100%;
+    padding: 0.75rem;
+    margin-bottom: 0.5rem;
+    font-size: 14px;
+}
+
+.llm-setup-btn.secondary {
+    width: 100%;
+    padding: 0.75rem;
+    border-color: #666;
+    color: #888;
+}
+
+.llm-setup-btn.secondary:hover {
+    background: #333;
+    color: #fff;
+    border-color: #888;
+    box-shadow: none;
+}
+
+.llm-setup-actions {
+    margin-top: 1.5rem;
+}
+
