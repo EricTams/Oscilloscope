@@ -824,39 +824,56 @@
     };
     
     ChessSorcererGame.prototype.drawDebug = function() {
-        const x = 0.03;
-        let y = 0.80;
-        const lineHeight = 0.038;
+        const lineHeight = 0.036;
+        const textSize = 0.013;
+        const smallText = 0.011;
         
-        this.drawText('DEBUG', x, y, 0.018);
-        y -= lineHeight;
+        const px = 0.03;
+        let py = 0.80;
         
         const eval_ = this.evaluatePosition();
         const evalStr = eval_ >= 0 ? '+' + eval_ : eval_.toString();
-        this.drawText('EVAL: ' + evalStr, x, y, 0.014);
-        y -= lineHeight;
+        this.drawText('EVAL ' + evalStr, px, py, textSize);
+        py -= lineHeight;
         
-        const advText = eval_ > 50 ? 'WHITE+' : eval_ < -50 ? 'BLACK+' : 'EVEN';
-        this.drawText('ADV: ' + advText, x, y, 0.014);
-        y -= lineHeight;
+        // Player search info
+        this.drawText('YOUR BEST D' + this.playerSearchDepth + ':', px, py, textSize);
+        py -= lineHeight;
         
-        this.drawText('DEPTH: ' + this.currentSearchDepth, x, y, 0.014);
-        y -= lineHeight;
-        this.drawText('POS: ' + this.positionsEvaluated, x, y, 0.014);
-        y -= lineHeight;
+        this.drawText('POS: ' + this.playerPositionsEvaluated, px, py, smallText);
+        py -= lineHeight * 0.8;
         
-        if (this.aiMoveScores.length > 0) {
-            this.drawText('AI MOVES:', x, y, 0.014);
-            y -= lineHeight;
-            
+        if (this.playerMoveScores && this.playerMoveScores.length > 0) {
+            const showCount = Math.min(3, this.playerMoveScores.length);
+            for (let i = 0; i < showCount; i++) {
+                const m = this.playerMoveScores[i];
+                const moveStr = this.moveToString(m.move).toUpperCase();
+                const scoreStr = m.score >= 0 ? '+' + m.score : m.score.toString();
+                this.drawText((i + 1) + '.' + moveStr + ' ' + scoreStr, px, py, smallText);
+                py -= lineHeight * 0.8;
+            }
+        } else {
+            this.drawText('SEARCHING...', px, py, smallText);
+            py -= lineHeight * 0.8;
+        }
+        
+        // AI's best moves
+        py -= lineHeight * 0.4;
+        
+        this.drawText('SORC BEST:', px, py, textSize);
+        py -= lineHeight;
+        
+        if (this.aiMoveScores && this.aiMoveScores.length > 0) {
             const showCount = Math.min(3, this.aiMoveScores.length);
             for (let i = 0; i < showCount; i++) {
                 const m = this.aiMoveScores[i];
                 const moveStr = this.moveToString(m.move).toUpperCase();
                 const scoreStr = m.score >= 0 ? '+' + m.score : m.score.toString();
-                this.drawText(moveStr + ' ' + scoreStr, x, y, 0.012);
-                y -= lineHeight * 0.8;
+                this.drawText((i + 1) + '.' + moveStr + ' ' + scoreStr, px, py, smallText);
+                py -= lineHeight * 0.8;
             }
+        } else {
+            this.drawText('THINKING...', px, py, smallText);
         }
     };
     

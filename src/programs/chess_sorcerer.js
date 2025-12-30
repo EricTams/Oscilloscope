@@ -220,9 +220,20 @@ class ChessSorcererGame {
         this.currentSearchDepth = 0;
         this.aiTurnStartTime = 0;  // When AI turn began (for minimum delay)
         
-        // Player move evaluation
-        this.playerMoveScores = [];  // Evaluated moves for player
-        this.lastPlayerMoveQuality = 0;  // -1 to 1, how good was player's move
+        // Player move evaluation (iterative deepening with pausable search)
+        this.playerMoveScores = [];
+        this.lastPlayerMoveQuality = 0;
+        this.playerSearching = false;
+        this.playerSearchDepth = 0;
+        this.playerPositionsEvaluated = 0;
+        this.playerMovesToEvaluate = [];
+        this.playerMoveIndex = 0;
+        this.playerCurrentDepthScores = [];
+        this.playerSearchGenerator = null;
+        this.playerSearchMove = null;
+        this.searchBoard = null;
+        this.searchCastling = null;
+        this.searchEnPassant = null;
         
         // Sorcerer eyes
         this.emotion = EMOTION.NEUTRAL;
@@ -301,6 +312,17 @@ class ChessSorcererGame {
         
         this.playerMoveScores = [];
         this.lastPlayerMoveQuality = 0;
+        this.playerSearching = false;
+        this.playerSearchDepth = 0;
+        this.playerPositionsEvaluated = 0;
+        this.playerMovesToEvaluate = [];
+        this.playerMoveIndex = 0;
+        this.playerCurrentDepthScores = [];
+        this.playerSearchGenerator = null;
+        this.playerSearchMove = null;
+        this.searchBoard = null;
+        this.searchCastling = null;
+        this.searchEnPassant = null;
         
         this.emotion = EMOTION.NEUTRAL;
         this.blinkTimer = 3 + Math.random() * 4;
@@ -801,23 +823,19 @@ class ChessSorcererGame {
             }
         }
         
-        // Mobility bonus (simplified)
-        const whiteMoves = this.generateAllMoves('white').length;
-        const blackMoves = this.generateAllMoves('black').length;
-        score += (whiteMoves - blackMoves) * 5;
-        
         return score;
     }
     
     // Minimax with alpha-beta pruning
-    minimax(depth, alpha, beta, maximizing, positionsLimit) {
+    // depthRemaining: how many plies left to search (higher = closer to root)
+    minimax(depthRemaining, alpha, beta, maximizing, positionsLimit) {
         this.positionsEvaluated++;
         
         if (positionsLimit && this.positionsEvaluated >= positionsLimit) {
             return { score: this.evaluatePosition(), move: null, cutoff: true };
         }
         
-        if (depth === 0) {
+        if (depthRemaining === 0) {
             return { score: this.evaluatePosition(), move: null };
         }
         
@@ -826,8 +844,8 @@ class ChessSorcererGame {
         
         if (moves.length === 0) {
             if (this.isInCheck(color)) {
-                // Checkmate
-                return { score: maximizing ? -100000 + (this.difficulty.maxDepth - depth) : 100000 - (this.difficulty.maxDepth - depth), move: null };
+                // Checkmate - prefer faster checkmates (higher depthRemaining = closer to root = faster)
+                return { score: maximizing ? -100000 - depthRemaining : 100000 + depthRemaining, move: null };
             }
             // Stalemate
             return { score: 0, move: null };
@@ -862,7 +880,7 @@ class ChessSorcererGame {
                 this.enPassant = null;
             }
             
-            const result = this.minimax(depth - 1, alpha, beta, !maximizing, positionsLimit);
+            const result = this.minimax(depthRemaining - 1, alpha, beta, !maximizing, positionsLimit);
             
             // Restore state
             this.board = savedBoard;
@@ -1019,25 +1037,432 @@ class ChessSorcererGame {
         this.updateEmotionFromPosition();
     }
     
-    startPlayerEvaluation() {
-        // Evaluate all player moves
-        const moves = this.generateAllMoves('white');
-        this.playerMoveScores = moves.map(move => {
-            const savedBoard = this.board.map(row => [...row]);
-            const savedCastling = {...this.castling};
-            const savedEnPassant = this.enPassant;
+    // AIDEV-NOTE: Iterative deepening search with pausable minimax
+    // Works on a COPY of the board, never touches the real game board
+    startPlayerSearch() {
+        this.playerSearching = true;
+        this.playerMoveScores = [];
+        this.playerSearchDepth = 1;
+        this.playerPositionsEvaluated = 0;
+        this.playerMovesToEvaluate = this.generateAllMoves('white');
+        this.playerMoveIndex = 0;
+        this.playerCurrentDepthScores = [];
+        this.playerSearchGenerator = null;
+        this.playerSearchMove = null;
+        // Search board is a separate copy - never touches the real board
+        this.searchBoard = null;
+        this.searchCastling = null;
+        this.searchEnPassant = null;
+    }
+    
+    continuePlayerSearch() {
+        if (!this.playerSearching) return;
+        
+        const POSITIONS_PER_FRAME = 500;
+        let positionsThisFrame = 0;
+        
+        while (positionsThisFrame < POSITIONS_PER_FRAME) {
+            // If we have an active generator, continue it
+            if (this.playerSearchGenerator) {
+                const result = this.playerSearchGenerator.next();
+                positionsThisFrame++;
+                this.playerPositionsEvaluated++;
+                
+                if (result.done) {
+                    // Search complete for this move
+                    this.playerCurrentDepthScores.push({ 
+                        move: this.playerSearchMove, 
+                        score: result.value 
+                    });
+                    this.playerSearchGenerator = null;
+                    this.playerMoveIndex++;
+                }
+                continue;
+            }
             
-            this.applyMoveToBoard(move);
-            const score = this.evaluatePosition();
+            // Check if we finished all moves at this depth
+            if (this.playerMoveIndex >= this.playerMovesToEvaluate.length) {
+                // Save results and go to next depth
+                this.playerCurrentDepthScores.sort((a, b) => b.score - a.score);
+                this.playerMoveScores = this.playerCurrentDepthScores;
+                
+                // Start next depth
+                this.playerSearchDepth++;
+                this.playerMoveIndex = 0;
+                this.playerCurrentDepthScores = [];
+                return;
+            }
             
-            this.board = savedBoard;
-            this.castling = savedCastling;
-            this.enPassant = savedEnPassant;
+            // Start search for next move
+            const move = this.playerMovesToEvaluate[this.playerMoveIndex];
+            this.playerSearchMove = move;
             
-            return { move, score };
+            // Create fresh copy of the board for this search
+            this.searchBoard = this.board.map(row => [...row]);
+            this.searchCastling = {...this.castling};
+            this.searchEnPassant = this.enPassant;
+            
+            // Make the player's move on the SEARCH board
+            this.applyMoveToSearchBoard(move);
+            
+            // Update en passant
+            const piece = this.board[move.from.row][move.from.col];
+            if (piece.toUpperCase() === 'P' && Math.abs(move.to.row - move.from.row) === 2) {
+                this.searchEnPassant = { row: (move.from.row + move.to.row) / 2, col: move.from.col };
+            } else {
+                this.searchEnPassant = null;
+            }
+            
+            // Start generator for this move's search (uses searchBoard)
+            this.playerSearchGenerator = this.minimaxGenerator(this.playerSearchDepth, -Infinity, Infinity, false);
+        }
+    }
+    
+    // Apply move to the search board (not the real board)
+    applyMoveToSearchBoard(move) {
+        const piece = this.searchBoard[move.from.row][move.from.col];
+        
+        if (move.enPassant) {
+            const captureRow = move.from.row;
+            this.searchBoard[captureRow][move.to.col] = EMPTY;
+        }
+        
+        if (move.castling) {
+            const row = move.from.row;
+            if (move.castling === 'kingside') {
+                this.searchBoard[row][5] = this.searchBoard[row][7];
+                this.searchBoard[row][7] = EMPTY;
+            } else {
+                this.searchBoard[row][3] = this.searchBoard[row][0];
+                this.searchBoard[row][0] = EMPTY;
+            }
+        }
+        
+        this.searchBoard[move.to.row][move.to.col] = piece;
+        this.searchBoard[move.from.row][move.from.col] = EMPTY;
+        
+        // Pawn promotion
+        if (piece.toUpperCase() === 'P') {
+            if ((this.isWhitePiece(piece) && move.to.row === 7) ||
+                (this.isBlackPiece(piece) && move.to.row === 0)) {
+                this.searchBoard[move.to.row][move.to.col] = this.isWhitePiece(piece) ? WHITE_QUEEN : BLACK_QUEEN;
+            }
+        }
+    }
+    
+    // Generator version of minimax that works on searchBoard
+    // depthRemaining: how many plies left to search (higher = closer to root)
+    *minimaxGenerator(depthRemaining, alpha, beta, maximizing) {
+        yield;  // Count this position
+        
+        if (depthRemaining === 0) {
+            return this.evaluateSearchBoard();
+        }
+        
+        const color = maximizing ? 'white' : 'black';
+        const moves = this.generateSearchBoardMoves(color);
+        
+        if (moves.length === 0) {
+            if (this.isSearchBoardInCheck(color)) {
+                // Prefer faster checkmates: higher depthRemaining = closer to root = faster mate
+                // Getting checkmated: closer is worse (more negative for maximizing)
+                // Delivering checkmate: closer is better (more positive for minimizing)
+                return maximizing ? -100000 - depthRemaining : 100000 + depthRemaining;
+            }
+            return 0;
+        }
+        
+        // Move ordering (captures first)
+        moves.sort((a, b) => {
+            const captureA = this.searchBoard[a.to.row][a.to.col] !== EMPTY ? 1 : 0;
+            const captureB = this.searchBoard[b.to.row][b.to.col] !== EMPTY ? 1 : 0;
+            return captureB - captureA;
         });
         
-        this.playerMoveScores.sort((a, b) => b.score - a.score);
+        let bestScore = maximizing ? -Infinity : Infinity;
+        
+        for (const move of moves) {
+            // Save search state
+            const savedBoard = this.searchBoard.map(row => [...row]);
+            const savedCastling = {...this.searchCastling};
+            const savedEnPassant = this.searchEnPassant;
+            
+            // Make move on search board
+            this.applyMoveToSearchBoard(move);
+            
+            // Update en passant
+            const piece = savedBoard[move.from.row][move.from.col];
+            if (piece.toUpperCase() === 'P' && Math.abs(move.to.row - move.from.row) === 2) {
+                this.searchEnPassant = { row: (move.from.row + move.to.row) / 2, col: move.from.col };
+            } else {
+                this.searchEnPassant = null;
+            }
+            
+            const score = yield* this.minimaxGenerator(depthRemaining - 1, alpha, beta, !maximizing);
+            
+            // Restore search state
+            this.searchBoard = savedBoard;
+            this.searchCastling = savedCastling;
+            this.searchEnPassant = savedEnPassant;
+            
+            if (maximizing) {
+                if (score > bestScore) bestScore = score;
+                alpha = Math.max(alpha, bestScore);
+            } else {
+                if (score < bestScore) bestScore = score;
+                beta = Math.min(beta, bestScore);
+            }
+            
+            if (beta <= alpha) break;
+        }
+        
+        return bestScore;
+    }
+    
+    // Evaluate the search board (not the real board)
+    evaluateSearchBoard() {
+        let score = 0;
+        for (let row = 0; row < 8; row++) {
+            for (let col = 0; col < 8; col++) {
+                const piece = this.searchBoard[row][col];
+                if (piece === EMPTY) continue;
+                
+                const value = PIECE_VALUES[piece];
+                const table = PIECE_TABLES[piece];
+                const tableRow = this.isWhitePiece(piece) ? 7 - row : row;
+                const tableIndex = tableRow * 8 + col;
+                const positional = table[tableIndex];
+                
+                if (this.isWhitePiece(piece)) {
+                    score += value + positional;
+                } else {
+                    score -= value + positional;
+                }
+            }
+        }
+        return score;
+    }
+    
+    // Generate moves for search board
+    generateSearchBoardMoves(color) {
+        const moves = [];
+        for (let row = 0; row < 8; row++) {
+            for (let col = 0; col < 8; col++) {
+                if (this.isSearchBoardPieceColor(this.searchBoard[row][col], color)) {
+                    const pieceMoves = this.generateSearchBoardPieceMoves(row, col);
+                    moves.push(...pieceMoves);
+                }
+            }
+        }
+        return moves;
+    }
+    
+    isSearchBoardPieceColor(piece, color) {
+        if (piece === EMPTY) return false;
+        return color === 'white' ? this.isWhitePiece(piece) : this.isBlackPiece(piece);
+    }
+    
+    generateSearchBoardPieceMoves(row, col) {
+        const piece = this.searchBoard[row][col];
+        if (piece === EMPTY) return [];
+        
+        const pieceType = piece.toUpperCase();
+        const color = this.isWhitePiece(piece) ? 'white' : 'black';
+        let moves = [];
+        
+        switch (pieceType) {
+            case 'P': moves = this.genSearchPawnMoves(row, col, color); break;
+            case 'N': moves = this.genSearchKnightMoves(row, col, color); break;
+            case 'B': moves = this.genSearchBishopMoves(row, col, color); break;
+            case 'R': moves = this.genSearchRookMoves(row, col, color); break;
+            case 'Q': moves = this.genSearchQueenMoves(row, col, color); break;
+            case 'K': moves = this.genSearchKingMoves(row, col, color); break;
+        }
+        
+        return moves.filter(move => !this.wouldSearchBoardBeInCheck(move, color));
+    }
+    
+    genSearchPawnMoves(row, col, color) {
+        const moves = [];
+        const direction = color === 'white' ? 1 : -1;
+        const startRow = color === 'white' ? 1 : 6;
+        const enemyColor = color === 'white' ? 'black' : 'white';
+        
+        const newRow = row + direction;
+        if (this.isValidSquare(newRow, col) && this.searchBoard[newRow][col] === EMPTY) {
+            moves.push({ from: {row, col}, to: {row: newRow, col} });
+            if (row === startRow) {
+                const doubleRow = row + 2 * direction;
+                if (this.searchBoard[doubleRow][col] === EMPTY) {
+                    moves.push({ from: {row, col}, to: {row: doubleRow, col} });
+                }
+            }
+        }
+        
+        for (const dc of [-1, 1]) {
+            const newCol = col + dc;
+            if (this.isValidSquare(newRow, newCol)) {
+                if (this.isSearchBoardPieceColor(this.searchBoard[newRow][newCol], enemyColor)) {
+                    moves.push({ from: {row, col}, to: {row: newRow, col: newCol} });
+                }
+                if (this.searchEnPassant && this.searchEnPassant.row === newRow && this.searchEnPassant.col === newCol) {
+                    moves.push({ from: {row, col}, to: {row: newRow, col: newCol}, enPassant: true });
+                }
+            }
+        }
+        return moves;
+    }
+    
+    genSearchKnightMoves(row, col, color) {
+        const moves = [];
+        const offsets = [[-2,-1],[-2,1],[-1,-2],[-1,2],[1,-2],[1,2],[2,-1],[2,1]];
+        for (const [dr, dc] of offsets) {
+            const newRow = row + dr, newCol = col + dc;
+            if (this.isValidSquare(newRow, newCol)) {
+                const target = this.searchBoard[newRow][newCol];
+                if (target === EMPTY || !this.isSearchBoardPieceColor(target, color)) {
+                    moves.push({ from: {row, col}, to: {row: newRow, col: newCol} });
+                }
+            }
+        }
+        return moves;
+    }
+    
+    genSearchSlidingMoves(row, col, color, directions) {
+        const moves = [];
+        for (const [dr, dc] of directions) {
+            let newRow = row + dr, newCol = col + dc;
+            while (this.isValidSquare(newRow, newCol)) {
+                const target = this.searchBoard[newRow][newCol];
+                if (target === EMPTY) {
+                    moves.push({ from: {row, col}, to: {row: newRow, col: newCol} });
+                } else if (!this.isSearchBoardPieceColor(target, color)) {
+                    moves.push({ from: {row, col}, to: {row: newRow, col: newCol} });
+                    break;
+                } else {
+                    break;
+                }
+                newRow += dr; newCol += dc;
+            }
+        }
+        return moves;
+    }
+    
+    genSearchBishopMoves(row, col, color) {
+        return this.genSearchSlidingMoves(row, col, color, [[-1,-1],[-1,1],[1,-1],[1,1]]);
+    }
+    
+    genSearchRookMoves(row, col, color) {
+        return this.genSearchSlidingMoves(row, col, color, [[-1,0],[1,0],[0,-1],[0,1]]);
+    }
+    
+    genSearchQueenMoves(row, col, color) {
+        return this.genSearchSlidingMoves(row, col, color, [[-1,-1],[-1,1],[1,-1],[1,1],[-1,0],[1,0],[0,-1],[0,1]]);
+    }
+    
+    genSearchKingMoves(row, col, color) {
+        const moves = [];
+        const directions = [[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]];
+        for (const [dr, dc] of directions) {
+            const newRow = row + dr, newCol = col + dc;
+            if (this.isValidSquare(newRow, newCol)) {
+                const target = this.searchBoard[newRow][newCol];
+                if (target === EMPTY || !this.isSearchBoardPieceColor(target, color)) {
+                    moves.push({ from: {row, col}, to: {row: newRow, col: newCol} });
+                }
+            }
+        }
+        // Skip castling in search for simplicity
+        return moves;
+    }
+    
+    findSearchBoardKing(color) {
+        const kingPiece = color === 'white' ? WHITE_KING : BLACK_KING;
+        for (let row = 0; row < 8; row++) {
+            for (let col = 0; col < 8; col++) {
+                if (this.searchBoard[row][col] === kingPiece) return {row, col};
+            }
+        }
+        return null;
+    }
+    
+    isSearchBoardInCheck(color) {
+        const king = this.findSearchBoardKing(color);
+        if (!king) return false;
+        return this.isSearchSquareAttacked(king.row, king.col, color === 'white' ? 'black' : 'white');
+    }
+    
+    isSearchSquareAttacked(row, col, byColor) {
+        for (let r = 0; r < 8; r++) {
+            for (let c = 0; c < 8; c++) {
+                if (this.isSearchBoardPieceColor(this.searchBoard[r][c], byColor)) {
+                    if (this.canSearchPieceAttack(r, c, row, col)) return true;
+                }
+            }
+        }
+        return false;
+    }
+    
+    canSearchPieceAttack(fromRow, fromCol, toRow, toCol) {
+        const piece = this.searchBoard[fromRow][fromCol];
+        const pieceType = piece.toUpperCase();
+        const color = this.isWhitePiece(piece) ? 'white' : 'black';
+        const dr = toRow - fromRow, dc = toCol - fromCol;
+        
+        switch (pieceType) {
+            case 'P': {
+                const direction = color === 'white' ? 1 : -1;
+                return dr === direction && Math.abs(dc) === 1;
+            }
+            case 'N':
+                return (Math.abs(dr) === 2 && Math.abs(dc) === 1) || (Math.abs(dr) === 1 && Math.abs(dc) === 2);
+            case 'B':
+                if (Math.abs(dr) !== Math.abs(dc) || dr === 0) return false;
+                return this.isSearchClearDiagonal(fromRow, fromCol, toRow, toCol);
+            case 'R':
+                if (dr !== 0 && dc !== 0) return false;
+                return this.isSearchClearStraight(fromRow, fromCol, toRow, toCol);
+            case 'Q':
+                if (dr === 0 || dc === 0) return this.isSearchClearStraight(fromRow, fromCol, toRow, toCol);
+                if (Math.abs(dr) === Math.abs(dc)) return this.isSearchClearDiagonal(fromRow, fromCol, toRow, toCol);
+                return false;
+            case 'K':
+                return Math.abs(dr) <= 1 && Math.abs(dc) <= 1;
+        }
+        return false;
+    }
+    
+    isSearchClearStraight(fromRow, fromCol, toRow, toCol) {
+        const dr = Math.sign(toRow - fromRow), dc = Math.sign(toCol - fromCol);
+        let r = fromRow + dr, c = fromCol + dc;
+        while (r !== toRow || c !== toCol) {
+            if (this.searchBoard[r][c] !== EMPTY) return false;
+            r += dr; c += dc;
+        }
+        return true;
+    }
+    
+    isSearchClearDiagonal(fromRow, fromCol, toRow, toCol) {
+        const dr = Math.sign(toRow - fromRow), dc = Math.sign(toCol - fromCol);
+        let r = fromRow + dr, c = fromCol + dc;
+        while (r !== toRow || c !== toCol) {
+            if (this.searchBoard[r][c] !== EMPTY) return false;
+            r += dr; c += dc;
+        }
+        return true;
+    }
+    
+    wouldSearchBoardBeInCheck(move, color) {
+        const savedBoard = this.searchBoard.map(row => [...row]);
+        this.applyMoveToSearchBoard(move);
+        const inCheck = this.isSearchBoardInCheck(color);
+        this.searchBoard = savedBoard;
+        return inCheck;
+    }
+    
+    startPlayerEvaluation() {
+        // Legacy function - now just starts the proper search
+        this.startPlayerSearch();
     }
     
     evaluatePlayerMove(move) {
@@ -1207,11 +1632,16 @@ class ChessSorcererGame {
         this.selectedSquare = null;
         this.legalMoves = [];
         
-        // Start AI search if game not over
+        // Start AI search if game not over (player just moved)
         if (!this.gameOver && this.turn === 'black') {
             // Play random sorcerer voice line
             this.playRandomSorcererSound();
             this.startAISearch();
+        }
+        
+        // Evaluate player's options after AI moved (AI just moved, now player's turn)
+        if (!this.gameOver && this.turn === 'white') {
+            this.startPlayerEvaluation();
         }
     }
     
@@ -1261,19 +1691,17 @@ class ChessSorcererGame {
             this.continueAISearch();
         }
         
+        // Update player search only when waiting for player's move
+        if (this.playerSearching && this.turn === 'white' && !this.animatingMove && !this.gameOver) {
+            this.continuePlayerSearch();
+        }
+        
         // Execute AI move when ready (minimum 4 second delay)
         const AI_MIN_DELAY_MS = 4000;
         const aiElapsed = performance.now() - this.aiTurnStartTime;
         if (!this.aiThinking && this.aiBestMove && this.turn === 'black' && !this.animatingMove && aiElapsed >= AI_MIN_DELAY_MS) {
             this.startMoveAnimation(this.aiBestMove);
             this.aiBestMove = null;
-            
-            // After AI move, evaluate player's options
-            setTimeout(() => {
-                if (this.turn === 'white') {
-                    this.startPlayerEvaluation();
-                }
-            }, 100);
         }
         
         // Generate display segments
