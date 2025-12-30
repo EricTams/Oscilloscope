@@ -17,9 +17,9 @@ class MoonTaxiGame {
         this.GRAVITY = 0.15;
         this.THRUST = 0.45;
         this.ROTATION_SPEED = 3.0;
-        this.MAX_LANDING_VELOCITY = 0.12;
-        this.MAX_LANDING_ANGLE = 0.35;  // radians from vertical
-        this.FUEL_CONSUMPTION = 0.15;   // per second while thrusting
+        this.MAX_LANDING_VELOCITY = 0.18;  // AIDEV-NOTE: Increased from 0.12 for easier landings
+        this.MAX_LANDING_ANGLE = 0.5;      // radians from vertical (increased from 0.35)
+        this.FUEL_CONSUMPTION = 0.10;      // per second while thrusting (reduced from 0.15)
         this.FUEL_REFILL_RATE = 0.4;    // per second on depot
         
         // Ship state
@@ -433,18 +433,30 @@ class MoonTaxiGame {
         this.segments.push([left.x, left.y, right.x, right.y]);
         this.segments.push([right.x, right.y, nose.x, nose.y]);
         
-        // Landing legs
-        const legLen = 0.012;
-        const leftLeg = {
-            x: left.x - Math.sin(s.angle + 0.5) * legLen,
-            y: left.y - Math.cos(s.angle + 0.5) * legLen
-        };
-        const rightLeg = {
-            x: right.x - Math.sin(s.angle - 0.5) * legLen,
-            y: right.y - Math.cos(s.angle - 0.5) * legLen
-        };
-        this.segments.push([left.x, left.y, leftLeg.x, leftLeg.y]);
-        this.segments.push([right.x, right.y, rightLeg.x, rightLeg.y]);
+        // Landing legs - only deploy when landing is safe
+        // AIDEV-NOTE: Legs retract to indicate unsafe landing conditions
+        const speed = Math.sqrt(s.vx * s.vx + s.vy * s.vy);
+        const angleFromVertical = Math.abs(s.angle % (Math.PI * 2));
+        const normalizedAngle = angleFromVertical > Math.PI ? 
+            Math.PI * 2 - angleFromVertical : angleFromVertical;
+        
+        const isSafeLanding = speed <= this.MAX_LANDING_VELOCITY && 
+                              normalizedAngle <= this.MAX_LANDING_ANGLE;
+        
+        if (isSafeLanding || s.landed) {
+            // Deploy landing legs when safe or already landed
+            const legLen = 0.012;
+            const leftLeg = {
+                x: left.x - Math.sin(s.angle + 0.5) * legLen,
+                y: left.y - Math.cos(s.angle + 0.5) * legLen
+            };
+            const rightLeg = {
+                x: right.x - Math.sin(s.angle - 0.5) * legLen,
+                y: right.y - Math.cos(s.angle - 0.5) * legLen
+            };
+            this.segments.push([left.x, left.y, leftLeg.x, leftLeg.y]);
+            this.segments.push([right.x, right.y, rightLeg.x, rightLeg.y]);
+        }
         
         // Thrust flame
         if (this.keys.w && s.fuel > 0 && !s.landed) {
