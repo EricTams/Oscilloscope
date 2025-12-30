@@ -333,18 +333,26 @@
         const w = size * 0.85;
         
         // AIDEV-NOTE: Knight fill uses explicit left/right edge coordinates
-        // Based on the actual knight outline shape
+        // Based on the actual knight outline shape - dense fill to match other pieces
         // Format: [y_offset, left_x_offset, right_x_offset] (all as multipliers of h/w)
         const fillRows = [
             // y (h mult), left (w mult), right (w mult)
-            [-0.80, -0.75, 0.50],   // Base - wide
-            [-0.60, -0.60, 0.42],   // Above base
-            [-0.35, -0.50, 0.38],   // Lower neck / lower chest
-            [-0.10, -0.38, 0.32],   // Mid neck / inner throat
-            [0.10,  -0.30, 0.45],   // Upper neck / jaw start
-            [0.30,  -0.22, 0.55],   // Near head / jaw
-            [0.50,  -0.08, 0.48],   // Head level / forehead
-            [0.65,   0.05, 0.38],   // Top of head
+            [-0.82, -0.80, 0.55],   // Base bottom - widest
+            [-0.75, -0.72, 0.48],   // Base upper
+            [-0.65, -0.62, 0.44],   // Above base
+            [-0.55, -0.55, 0.40],   // Base to neck transition
+            [-0.45, -0.52, 0.38],   // Lower neck
+            [-0.35, -0.48, 0.36],   // Lower neck / chest
+            [-0.25, -0.42, 0.34],   // Mid-lower neck
+            [-0.15, -0.38, 0.32],   // Mid neck
+            [-0.05, -0.34, 0.35],   // Mid-upper neck / inner throat
+            [0.05,  -0.30, 0.42],   // Upper neck / jaw start
+            [0.15,  -0.26, 0.50],   // Jaw area
+            [0.25,  -0.20, 0.54],   // Near head / jaw
+            [0.35,  -0.14, 0.52],   // Lower head
+            [0.45,  -0.06, 0.50],   // Head level
+            [0.55,   0.02, 0.45],   // Upper head / forehead
+            [0.65,   0.08, 0.36],   // Top of head
         ];
         
         for (const [yMult, leftMult, rightMult] of fillRows) {
