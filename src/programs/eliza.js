@@ -53,8 +53,12 @@ class ElizaProgram {
         this.typingResponse = null;
         this.typingIndex = 0;
         
-        // Opening message from ELIZA
-        this.addMessage('ELIZA', 'Fault detected. Are you awake?');
+        // AIDEV-NOTE: Opening message from ELIZA - conditional based on game state
+        if (GameState.NeedsTransmitterExplained) {
+            this.addMessage('ELIZA', '[PLACEHOLDER] Transmitter greeting here.');
+        } else {
+            this.addMessage('ELIZA', 'Fault detected. Are you awake?');
+        }
         
         // Check LLM status
         if (!LLM.isConfigured()) {

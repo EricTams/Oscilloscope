@@ -578,6 +578,29 @@ let cube = null;
 let animationFrameId = null;
 let lastFrameTime = 0;
 
+// Background music
+// AIDEV-NOTE: Plays quietly on loop, started on first user interaction (browser autoplay policy)
+const BACKGROUND_MUSIC_VOLUME = 0.15;  // Quiet background level
+let backgroundMusic = null;
+let backgroundMusicStarted = false;
+
+function initBackgroundMusic() {
+    backgroundMusic = new Audio('sounds/music/Space Sounds.mp3');
+    backgroundMusic.loop = true;
+    backgroundMusic.volume = BACKGROUND_MUSIC_VOLUME;
+}
+
+function startBackgroundMusic() {
+    if (backgroundMusicStarted || !backgroundMusic) return;
+    backgroundMusic.play().then(() => {
+        backgroundMusicStarted = true;
+        console.log('Background music started');
+    }).catch(err => {
+        // Browser blocked autoplay, will try again on next interaction
+        console.log('Background music blocked, will retry on interaction');
+    });
+}
+
 // FPS tracking
 let fpsFrameCount = 0;
 let fpsLastTime = 0;
@@ -612,8 +635,14 @@ function enterDirectMode(program, name) {
 
 /**
  * Return to Command Mode from Direct Mode
+ * AIDEV-NOTE: Calls cleanup() on program if it exists (for audio, WebGL resources, etc.)
  */
 function enterCommandMode() {
+    // Call cleanup on current program if it has one
+    if (directModeProgram && directModeProgram.cleanup) {
+        directModeProgram.cleanup();
+    }
+    
     currentMode = MODE_COMMAND;
     directModeProgram = null;
     directModeProgramName = null;
@@ -738,6 +767,33 @@ function gameLoop(currentTime) {
 
 const LOREM_IPSUM = `Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum. Curabitur pretium tincidunt lacus. Nulla gravida orci a odio. Nullam varius, turpis et commodo pharetra, est eros bibendum elit, nec luctus magna felis sollicitudin mauris. Integer in mauris eu nibh euismod gravida. Duis ac tellus et risus vulputate vehicula.`;
 
+// AIDEV-NOTE: Puzzle definitions for PUZZ command
+// Each puzzle has a name and setup function that configures GameState preconditions
+const PUZZLES = {
+    0: {
+        name: 'Reset All State',
+        setup: () => {
+            GameState.reset();
+        }
+    },
+    1: {
+        name: 'Mysterious Signal',
+        setup: () => {
+            GameState.reset();
+            GameState.FixRecieverCompleted = true;
+            GameState.FixTransmitterCompleted = true;
+            GameState.NeedsTransmitterExplained = true;
+            GameState.SignalReceived = true;  // Enables ANALYZER command
+        }
+    }
+};
+
+// AIDEV-NOTE: Helper to check if a command is available based on requiresFlag
+function isCommandAvailable(cmd) {
+    if (!cmd.requiresFlag) return true;
+    return GameState[cmd.requiresFlag] === true;
+}
+
 const COMMANDS = {
     'COMMANDS': {
         description: 'List available commands',
@@ -746,7 +802,10 @@ const COMMANDS = {
             terminal.println('AVAILABLE COMMANDS:');
             terminal.println('');
             for (const [name, cmd] of Object.entries(COMMANDS)) {
-                terminal.println('  ' + name + ' - ' + cmd.description);
+                // Only show commands that are available (no requiresFlag or flag is true)
+                if (isCommandAvailable(cmd)) {
+                    terminal.println('  ' + name + ' - ' + cmd.description);
+                }
             }
             terminal.println('');
         }
@@ -815,6 +874,18 @@ const COMMANDS = {
             terminal.println('1-4=DIFFICULTY R=RESTART CTRL-C=QUIT');
             setTimeout(() => {
                 enterDirectMode(chessSorcererGame, 'CHESS');
+            }, 500);
+        }
+    },
+    'ANALYZER': {
+        description: 'Signal analyzer - FFT spectrum display',
+        requiresFlag: 'SignalReceived',
+        action: () => {
+            terminal.println('LOADING SIGNAL ANALYZER...');
+            terminal.println('SPACE=PLAY  ARROWS=ZOOM  R=RESET');
+            terminal.println('CTRL+C=QUIT');
+            setTimeout(() => {
+                enterDirectMode(signalAnalyzer, 'ANALYZER');
             }, 500);
         }
     },
@@ -888,25 +959,61 @@ const COMMANDS = {
             }
             if (line) terminal.println(line);
         }
+    },
+    'PUZZ': {
+        description: 'List puzzles or set puzzle state (PUZZ [num])',
+        action: (args) => {
+            if (!args) {
+                // List all puzzles
+                terminal.println('');
+                terminal.println('AVAILABLE PUZZLES:');
+                terminal.println('');
+                for (const [num, puzzle] of Object.entries(PUZZLES)) {
+                    terminal.println('  ' + num + ' - ' + puzzle.name);
+                }
+                terminal.println('');
+                terminal.println('Usage: PUZZ <number>');
+            } else {
+                const num = parseInt(args, 10);
+                if (PUZZLES[num]) {
+                    PUZZLES[num].setup();
+                    terminal.println('Puzzle ' + num + ' state set: ' + PUZZLES[num].name);
+                } else {
+                    terminal.println('Unknown puzzle: ' + args);
+                }
+            }
+        }
     }
 };
 
 /**
  * Process a command entered by the user
+ * AIDEV-NOTE: Commands can now take arguments (e.g., PUZZ 1)
  */
 function processCommand(input) {
-    const cmd = input.trim().toUpperCase();
+    const trimmed = input.trim().toUpperCase();
     
     // Echo the command
     terminal.println('> ' + input);
     
-    if (cmd === '') {
+    if (trimmed === '') {
         return;
     }
     
+    // Parse command and arguments
+    const spaceIndex = trimmed.indexOf(' ');
+    const cmd = spaceIndex === -1 ? trimmed : trimmed.substring(0, spaceIndex);
+    const args = spaceIndex === -1 ? null : trimmed.substring(spaceIndex + 1).trim();
+    
     // Look up command
     if (COMMANDS[cmd]) {
-        COMMANDS[cmd].action();
+        // Check if command is available (requiresFlag check)
+        if (!isCommandAvailable(COMMANDS[cmd])) {
+            terminal.println('Unknown command: ' + cmd);
+            terminal.println("Type 'COMMANDS' for options");
+            return;
+        }
+        COMMANDS[cmd].action(args);
     } else {
         terminal.println('Unknown command: ' + cmd);
         terminal.println("Type 'COMMANDS' for options");
@@ -918,6 +1025,9 @@ function processCommand(input) {
  */
 function initGame() {
     console.log('Initializing Oscilloscope Display...');
+    
+    // Initialize background music (will start on first user interaction)
+    initBackgroundMusic();
     
     // Initialize LLM setup handlers (buttons, etc.)
     LLM.initSetupHandlers();
@@ -969,6 +1079,9 @@ function initGame() {
         
         // Handle keyboard input
         document.addEventListener('keydown', (e) => {
+            // Start background music on first interaction (browser autoplay policy)
+            startBackgroundMusic();
+            
             // Ctrl+C returns to Command Mode from Direct Mode
             if (e.ctrlKey && e.key === 'c') {
                 if (currentMode === MODE_DIRECT) {
@@ -1016,6 +1129,11 @@ function initGame() {
             }
         });
         
+        // Also start music on click (for mouse/touch users)
+        document.addEventListener('click', () => {
+            startBackgroundMusic();
+        }, { once: true });
+        
         // Start the game loop
         lastFrameTime = performance.now();
         animationFrameId = requestAnimationFrame(gameLoop);
@@ -1055,6 +1173,11 @@ function initGame() {
             // Ambient artifact control
             setAmbientArtifacts: (enabled) => { ambientArtifacts.enabled = enabled; },
             getAmbientArtifacts: () => ambientArtifacts,
+            // Background music control
+            setMusicVolume: (v) => { if (backgroundMusic) backgroundMusic.volume = Math.max(0, Math.min(1, v)); },
+            getMusicVolume: () => backgroundMusic ? backgroundMusic.volume : 0,
+            pauseMusic: () => { if (backgroundMusic) backgroundMusic.pause(); },
+            resumeMusic: () => { if (backgroundMusic) backgroundMusic.play(); },
         };
         
         console.log('Game initialized. Use window.Game to interact.');

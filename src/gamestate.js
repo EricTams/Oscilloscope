@@ -9,15 +9,29 @@ const GameState = {
     // Conversation milestones
     playerDiscussedStatus: false,
     
-    // Add more flags here as needed:
-    // playerMetEliza: false,
-    // playerKnowsAboutFault: false,
-    // statusFullyDiscussed: false,
+    // Puzzle state flags
+    // AIDEV-NOTE: These flags control puzzle progression and program visibility
+    FixRecieverCompleted: false,
+    FixTransmitterCompleted: false,
+    NeedsTransmitterExplained: false,
     
-    // Reset to initial state (call on new game)
+    // Signal analyzer puzzle flags
+    // AIDEV-NOTE: SignalReceived enables ANALYZER command
+    // SignalAnalyzed tracks if player has viewed the analysis
+    // ResponseTransmitted tracks puzzle completion
+    SignalReceived: false,
+    SignalAnalyzed: false,
+    ResponseTransmitted: false,
+    
+    // Reset to initial state (call on new game or PUZZ 0)
     reset() {
         this.playerDiscussedStatus = false;
-        // Reset any additional flags here
+        this.FixRecieverCompleted = false;
+        this.FixTransmitterCompleted = false;
+        this.NeedsTransmitterExplained = false;
+        this.SignalReceived = false;
+        this.SignalAnalyzed = false;
+        this.ResponseTransmitted = false;
     }
 };
 
