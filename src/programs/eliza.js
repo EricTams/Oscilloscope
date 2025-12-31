@@ -211,6 +211,18 @@ TIMESTAMP: ${new Date(this.lastLLMExchange.timestamp).toISOString()}
                 console.log('GameState: playerDiscussedStatus = true');
                 break;
                 
+            case 'CompletePsychAssessment':
+                // Psych assessment completed - Eliza now needs to reveal player's role
+                GameState.NeedsRoleReveal = true;
+                console.log('GameState: NeedsRoleReveal = true');
+                break;
+                
+            case 'PostPsychAssessment':
+                // Role revealed - player now needs to run Solar program
+                GameState.NeedsSolarProgram = true;
+                console.log('GameState: NeedsSolarProgram = true');
+                break;
+                
             case 'InitializeTransmitter':
                 // Player told Eliza to boot the transmitter
                 GameState.TransmitterInitialized = true;

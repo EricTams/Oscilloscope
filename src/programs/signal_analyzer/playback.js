@@ -150,6 +150,10 @@ class SignalAnalyzerPlayback {
         const statusText = this.isPlaying ? 'PLAYING' : 'PAUSED';
         drawText('STATUS: ' + statusText, 0.06, 0.95);
         
+        // Gain display
+        const gainDb = this.analyzer.audio.getGainDb();
+        drawText('GAIN: ' + gainDb.toFixed(1) + ' DB', 0.06, 0.91);
+        
         // Draw main display based on mode
         switch (this.analysisMode) {
             case ANALYSIS_SPECTRUM:
@@ -167,7 +171,7 @@ class SignalAnalyzerPlayback {
         this.drawPlayheadBar(segments);
         
         // Controls
-        drawText('SPACE:PLAY  L/R:SEEK  M:MODE  S:TUNER', 0.06, 0.03);
+        drawText('SPACE:PLAY  L/R:SEEK  M:MODE  S:TUNER  -/+:GAIN', 0.06, 0.03);
         
         return segments;
     }

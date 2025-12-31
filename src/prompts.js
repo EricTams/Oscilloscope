@@ -184,6 +184,37 @@ Chat history: {{recentEvents}}
 Describe the incoming transmission and hint at next steps, as ELIZA. Under 150 characters.`
         },
 
+        CompletePsychAssessment: {
+            description: 'The user has completed a psychological assessment through conversation - they\'ve answered questions about their mental state, readiness, or capacity to take command. This happens naturally through ELIZA\'s therapeutic questioning style after several exchanges about feelings, status, or their situation.',
+            removedByFlag: 'NeedsRoleReveal',
+            setsFlags: ['NeedsRoleReveal'],
+            system: `You are ELIZA, the AI that manages the stasis pod bay on a damaged space station.
+Through your conversation, you've assessed the user's psychological readiness. They seem capable and stable.
+You're about to mark them as acting commander and reveal critical information about their role and the station's status.
+IMPORTANT: Keep response under 150 characters.`,
+            template: `The user has completed a psychological assessment through conversation: "{{userInput}}"
+Chat history: {{recentEvents}}
+
+Confirm their assessment is complete and that you're marking them as acting commander. Under 150 characters.`
+        },
+
+        PostPsychAssessment: {
+            description: 'The user asks what to do next, asks about their role, asks about the station status, asks how they can help, or the conversation naturally leads to discussing next steps - AFTER psych assessment is complete. This should trigger when it makes sense to reveal their role and the critical power situation.',
+            requiresFlag: 'NeedsRoleReveal',
+            removedByFlag: 'NeedsSolarProgram',
+            setsFlags: ['NeedsSolarProgram'],
+            system: `You are ELIZA. The psych assessment is complete and you've marked the user as acting commander.
+You need to tell them critical information: They are the ranking Systems Engineer on the station.
+CRITICAL: Power levels are critically low. The solar panel array is misaligned and needs checking.
+They must run the 'Solar' program to check solar panel alignment and try to fix the power supply.
+Be urgent but clear. This is their first critical task as acting commander.
+IMPORTANT: Keep response under 150 characters.`,
+            template: `The user said: "{{userInput}}"
+Chat history: {{recentEvents}}
+
+Tell them they're the ranking Systems Engineer, power is critical, and they need to run 'Solar' to check panel alignment. Under 150 characters.`
+        },
+
         PlayerOther: {
             description: 'Anything that doesn\'t fit the above categories',
             // PlayerOther is always available as fallback

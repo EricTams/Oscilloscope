@@ -8,6 +8,16 @@
 const GameState = {
     // Conversation milestones
     playerDiscussedStatus: false,
+    NeedsRoleReveal: false,  // After psych assessment, Eliza needs to reveal player's role
+    NeedsSolarProgram: false,  // After role revealed, player needs to run Solar program
+    
+    // Station systems
+    powerLevel: 0.81,  // Power level percentage (average of all 4 panels, starts critical at ~0.81%)
+    SolarAligned: false,  // True when solar panels 3&4 aligned to moon (power >= 2.4%)
+    
+    // Solar panel angles (persisted between program entries)
+    // null = use default, otherwise use saved value
+    solarPanelAngles: null,  // Will be set to [angle1, angle2, angle3, angle4] by Solar.initDefaults()
     
     // Puzzle state flags
     // AIDEV-NOTE: These flags control puzzle progression and program visibility
@@ -31,9 +41,21 @@ const GameState = {
     SignalAnalyzed: false,
     ResponseTransmitted: false,
     
+    // Game unlocks
+    // AIDEV-NOTE: These flags control access to games and cube
+    RocksUnlocked: false,
+    MoonTaxiUnlocked: false,
+    ChessUnlocked: false,
+    CubeUnlocked: false,
+    
     // Reset to initial state (call on new game or PUZZ 0)
     reset() {
         this.playerDiscussedStatus = false;
+        this.NeedsRoleReveal = false;
+        this.NeedsSolarProgram = false;
+        this.powerLevel = 0.81;
+        this.SolarAligned = false;
+        this.solarPanelAngles = null;
         this.FixRecieverCompleted = false;
         this.FixTransmitterCompleted = false;
         this.NeedsTransmitterExplained = false;
@@ -43,6 +65,10 @@ const GameState = {
         this.SignalReceived = false;
         this.SignalAnalyzed = false;
         this.ResponseTransmitted = false;
+        this.RocksUnlocked = false;
+        this.MoonTaxiUnlocked = false;
+        this.ChessUnlocked = false;
+        this.CubeUnlocked = false;
     }
 };
 

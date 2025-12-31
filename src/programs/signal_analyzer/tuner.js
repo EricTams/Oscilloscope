@@ -46,8 +46,9 @@ class SignalAnalyzerTuner {
             this.signalStrength = calculateSignalStrength(this.frequency, nearest.signal.freq);
             this.lockedSignal = nearest.signal;
             
-            // Load signal audio if not already loaded
-            if (this.analyzer.audio.currentSignal !== nearest.signal) {
+            // Load signal audio if not already loaded (compare by frequency to avoid reference issues)
+            const currentFreq = this.analyzer.audio.currentSignal ? this.analyzer.audio.currentSignal.freq : null;
+            if (currentFreq !== nearest.signal.freq) {
                 this.analyzer.audio.loadSignalForTuner(nearest.signal);
             }
         } else {
@@ -187,6 +188,10 @@ class SignalAnalyzerTuner {
             drawText('ADJUST FREQUENCY', 0.06, 0.18);
         }
         
+        // Gain display
+        const gainDb = this.analyzer.audio.getGainDb();
+        drawText('GAIN: ' + gainDb.toFixed(1) + ' DB', 0.06, 0.14);
+        
         // Recording status
         if (this.isRecording) {
             const pct = Math.round(this.recordingProgress * 100);
@@ -214,7 +219,7 @@ class SignalAnalyzerTuner {
         
         // Controls
         const recordText = this.isRecording ? 'R:STOP REC' : 'R:RECORD';
-        drawText('UP/DOWN:COARSE  L/R:FINE  ' + recordText + '  S:PLAYBACK', 0.06, 0.03);
+        drawText('UP/DOWN:COARSE  L/R:FINE  ' + recordText + '  S:PLAYBACK  -/+:GAIN', 0.06, 0.03);
         
         // Warning message (flashing)
         if (this.warningMessage && this.warningTimer > 0) {

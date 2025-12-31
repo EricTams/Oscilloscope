@@ -4,6 +4,12 @@
 
 const BROADCAST_SIGNALS = [
     { 
+        freq: 5.0,     // MHz - Emergency band
+        name: 'ASTRONAUT_DISTRESS', 
+        gameFlag: null,  // Always available
+        file: 'sounds/signals/astronaut_distress.mp3'
+    },
+    { 
         freq: 7.250,   // MHz
         name: 'UNKNOWN_SIGNAL_1', 
         gameFlag: 'SignalReceived',

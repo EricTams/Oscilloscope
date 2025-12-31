@@ -614,6 +614,9 @@ let currentMode = MODE_COMMAND;
 let directModeProgram = null;  // Object with update(dt), getSegments(), handleKey(key, down)
 let directModeProgramName = null;
 
+// Dev mode - when active, all commands are available regardless of requiresFlag
+let devMode = false;
+
 /**
  * Enter Direct Mode - gives full screen control to a program
  * @param {Object} program - Object with init(), update(dt), getSegments(), handleKey(key, down)
@@ -650,6 +653,12 @@ function enterCommandMode() {
     if (oscilloscope) {
         oscilloscope.clearLines();
     }
+    
+    // Refresh status display when returning to command mode (shows current power level)
+    if (terminal) {
+        updateStationStatus();
+    }
+    
     console.log('Returned to Command Mode');
 }
 
@@ -782,6 +791,7 @@ const PUZZLES = {
             GameState.reset();
             GameState.FixRecieverCompleted = true;
             GameState.FixTransmitterCompleted = true;
+            GameState.SignalReceived = true;  // Signal analyzer is available
             // Transmitter is ready but not yet initialized
             // Player needs to talk to Eliza to start the test
         }
@@ -789,7 +799,16 @@ const PUZZLES = {
 };
 
 // AIDEV-NOTE: Helper to check if a command is available based on requiresFlag
+// AIDEV-NOTE: Dev mode bypasses all requiresFlag checks
+// AIDEV-NOTE: Commands with requiresDevMode only available when dev mode is on
 function isCommandAvailable(cmd) {
+    // Check if command requires dev mode
+    if (cmd.requiresDevMode && !devMode) return false;
+    
+    // Dev mode: all commands available (except those that require dev mode, which we already checked)
+    if (devMode) return true;
+    
+    // Normal mode: check requiresFlag
     if (!cmd.requiresFlag) return true;
     return GameState[cmd.requiresFlag] === true;
 }
@@ -826,8 +845,20 @@ const COMMANDS = {
             }, 300);
         }
     },
+    'SOLAR': {
+        description: 'Solar panel alignment (fix power)',
+        requiresFlag: 'NeedsSolarProgram',
+        action: () => {
+            terminal.println('LOADING SOLAR ARRAY CONTROL...');
+            terminal.println('ARROWS=SELECT/ROTATE  CTRL+C=QUIT');
+            setTimeout(() => {
+                enterDirectMode(solarProgram, 'SOLAR');
+            }, 300);
+        }
+    },
     'CUBE': {
         description: 'Toggle the rotating cube',
+        requiresFlag: 'CubeUnlocked',
         action: () => {
             if (cube) {
                 cube.setEnabled(!cube.enabled);
@@ -837,6 +868,7 @@ const COMMANDS = {
     },
     'ROCKS': {
         description: 'Play Asteroids (WASD + SPACE)',
+        requiresFlag: 'RocksUnlocked',
         action: () => {
             terminal.println('LAUNCHING ROCKS...');
             terminal.println('WASD=MOVE  SPACE=FIRE  CTRL+C=QUIT');
@@ -848,6 +880,7 @@ const COMMANDS = {
     },
     'MOONTAXI': {
         description: 'Space Taxi game (W=THRUST A/D=ROTATE)',
+        requiresFlag: 'MoonTaxiUnlocked',
         action: () => {
             terminal.println('LAUNCHING MOON TAXI...');
             terminal.println('W=THRUST  A/D=ROTATE  CTRL+C=QUIT');
@@ -868,6 +901,7 @@ const COMMANDS = {
     },
     'CHESS': {
         description: 'Chess Sorcerer - play chess vs evil AI',
+        requiresFlag: 'ChessUnlocked',
         action: () => {
             terminal.println('SUMMONING THE SORCERER...');
             terminal.println('ARROWS=MOVE SPACE=SELECT D=DEBUG');
@@ -891,6 +925,7 @@ const COMMANDS = {
     },
     'ARTIFACTS': {
         description: 'Demo all visual artifacts',
+        requiresDevMode: true,
         action: () => {
             terminal.println('ARTIFACT TEST - 10 SECONDS');
             const artifacts = ['noise', 'flicker', 'distortion', 'interference', 'jitter'];
@@ -942,6 +977,7 @@ const COMMANDS = {
     },
     'SCREENTEST': {
         description: 'Fill screen with test text',
+        requiresDevMode: true,
         action: () => {
             terminal.clear();
             oscilloscope.clearLines();
@@ -983,6 +1019,16 @@ const COMMANDS = {
                 }
             }
         }
+    },
+    'DEV': {
+        description: 'Toggle dev mode (unlocks all commands)',
+        action: () => {
+            devMode = !devMode;
+            terminal.println('');
+            terminal.println('DEV MODE: ' + (devMode ? 'ON' : 'OFF'));
+            terminal.println(devMode ? 'All commands are now available.' : 'Commands restricted by game state.');
+            terminal.println('');
+        }
     }
 };
 
@@ -1021,10 +1067,37 @@ function processCommand(input) {
 }
 
 /**
+ * Update station status display in command mode
+ * AIDEV-NOTE: Called when status changes or periodically to show current power level
+ */
+function updateStationStatus(showCommandsHint = false) {
+    if (!terminal || currentMode !== MODE_COMMAND) return;
+    
+    const power = GameState.powerLevel.toFixed(1);
+    const powerStatus = GameState.powerLevel < 2.4 ? 'CRITICAL' : 'LOW';
+    
+    terminal.println('STATION STATUS');
+    terminal.println('');
+    terminal.println('LIFE SUPPORT: ONLINE');
+    terminal.println('OXYGEN: 87%');
+    terminal.println(`POWER: ${power}% [${powerStatus}]`);
+    terminal.println('HULL: INTACT');
+    terminal.println('');
+    
+    if (showCommandsHint) {
+        terminal.println("Type 'COMMANDS' for options");
+    }
+}
+
+/**
  * Initialize the game
  */
 function initGame() {
     console.log('Initializing Oscilloscope Display...');
+    
+    // Initialize program defaults in GameState
+    // AIDEV-NOTE: Programs with persistent state should register their defaults here
+    SolarProgram.initDefaults();
     
     // Initialize background music (will start on first user interaction)
     initBackgroundMusic();
@@ -1059,16 +1132,6 @@ function initGame() {
         // Create unified terminal (text buffer + separator + input)
         terminal = new Terminal(oscilloscope, 32);
         terminal.inputState = inputState;
-        
-        // Print initial status
-        terminal.println('STATION STATUS');
-        terminal.println('');
-        terminal.println('LIFE SUPPORT: ONLINE');
-        terminal.println('OXYGEN: 87%');
-        terminal.println('POWER: 94%');
-        terminal.println('HULL: INTACT');
-        terminal.println('');
-        terminal.println("Type 'COMMANDS' for options");
         
         // Create rotating cube in bottom right corner
         cube = new RotatingCube(0.82, 0.45, 0.1);
@@ -1137,6 +1200,11 @@ function initGame() {
         // Start the game loop
         lastFrameTime = performance.now();
         animationFrameId = requestAnimationFrame(gameLoop);
+        
+        // Start in STATUS program
+        setTimeout(() => {
+            enterDirectMode(statusMonitor, 'STATUS');
+        }, 100);
         
         // Expose for debugging
         window.Game = {

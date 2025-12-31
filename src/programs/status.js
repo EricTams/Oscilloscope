@@ -210,10 +210,21 @@ class StatusMonitor {
     
     drawHold() {
         const x = 0.52;
-        let y = 0.45;
-        const lineHeight = 0.06;
+        let y = 0.50;  // Start higher to fit power section
+        const lineHeight = 0.055;  // Slightly smaller line height
         const barX = 0.82;
         const barW = 0.12;
+        
+        // Station power from GameState
+        this.drawText("STATION POWER", x, y);
+        y -= lineHeight;
+        
+        const powerPct = GameState.powerLevel;
+        const powerStatus = powerPct < 2.4 ? "CRIT" : "LOW";
+        this.drawText("PWR:", x, y);
+        this.drawText(powerPct.toFixed(1) + "% " + powerStatus, x + 0.12, y);
+        this.drawBar(barX, y, barW, powerPct / 10);  // Scale: 10% = full bar
+        y -= lineHeight * 1.2;
         
         this.drawText("HOLD STATUS", x, y);
         y -= lineHeight;

@@ -71,6 +71,16 @@ class SignalAnalyzer {
             case 'S':
                 this.toggleSourceMode();
                 return;
+            case '-':
+            case '_':
+                // Decrease gain by 2 dB
+                this.audio.adjustGainDb(-2);
+                return;
+            case '=':
+            case '+':
+                // Increase gain by 2 dB
+                this.audio.adjustGainDb(2);
+                return;
         }
         
         // Delegate to active mode

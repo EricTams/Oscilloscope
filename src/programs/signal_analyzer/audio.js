@@ -50,6 +50,9 @@ class SignalAnalyzerAudio {
         // Key: signal name, Value: { startTime: timestamp when we "started" tracking }
         this.globalSongTimes = {};
         this.globalReferenceTime = Date.now();  // Reference point for all songs
+        
+        // Gain control (in dB)
+        this.gainDb = -20.0;  // Initial gain: -20 dB
     }
     
     async init() {
@@ -67,8 +70,9 @@ class SignalAnalyzerAudio {
         this.timeDomainData = new Uint8Array(this.fftSize);
         
         // Master gain for output
+        // Initial gain: -20 dB (linear: 10^(-20/20) = 0.1)
         this.masterGain = this.audioContext.createGain();
-        this.masterGain.gain.value = 0.5;
+        this.masterGain.gain.value = 0.1;  // -20 dB
         this.masterGain.connect(this.analyser);
         this.analyser.connect(this.audioContext.destination);
         
@@ -133,12 +137,20 @@ class SignalAnalyzerAudio {
     
     // Load a signal file for the tuner
     async loadSignalForTuner(signal) {
+        console.log('Loading signal:', signal.name, 'at', signal.freq, 'MHz, file:', signal.file);
+        
+        // Stop old signal immediately
         if (this.signalSource) {
-            this.signalSource.stop();
+            try {
+                this.signalSource.stop();
+            } catch (e) {
+                // Ignore errors if already stopped
+            }
             this.signalSource.disconnect();
             this.signalSource = null;
         }
         
+        // Set current signal immediately to prevent race conditions
         this.currentSignal = signal;
         this.signalBuffer = null;
         
@@ -147,13 +159,19 @@ class SignalAnalyzerAudio {
             if (!response.ok) throw new Error('File not found');
             const arrayBuffer = await response.arrayBuffer();
             this.signalBuffer = await this.audioContext.decodeAudioData(arrayBuffer);
+            console.log('Successfully loaded signal file:', signal.name);
         } catch (err) {
-            console.warn('Could not load signal file, generating:', err.message);
+            console.warn('Could not load signal file, generating fallback:', err.message, signal.file);
             this.signalBuffer = this.generateSignalBuffer(signal);
         }
         
-        // Start playing the signal at the correct global position
-        this.startSignalAtGlobalTime();
+        // Only start if we're still on the same signal (prevent race condition)
+        if (this.currentSignal === signal && this.signalBuffer) {
+            console.log('Starting playback of signal:', signal.name);
+            this.startSignalAtGlobalTime();
+        } else {
+            console.warn('Signal changed during load, not starting playback. Current:', this.currentSignal?.name, 'Requested:', signal.name);
+        }
     }
     
     // Calculate where in the song we should be based on global time
@@ -510,6 +528,24 @@ class SignalAnalyzerAudio {
         if (this.signalBuffer) {
             this.startSignalAtGlobalTime();
         }
+    }
+    
+    // Gain control methods
+    // Convert dB to linear gain: gain = 10^(dB/20)
+    setGainDb(db) {
+        this.gainDb = Math.max(-60, Math.min(20, db));  // Clamp to -60 dB to +20 dB
+        const linearGain = Math.pow(10, this.gainDb / 20);
+        if (this.masterGain) {
+            this.masterGain.gain.setTargetAtTime(linearGain, this.audioContext.currentTime, 0.05);
+        }
+    }
+    
+    adjustGainDb(deltaDb) {
+        this.setGainDb(this.gainDb + deltaDb);
+    }
+    
+    getGainDb() {
+        return this.gainDb;
     }
     
     cleanup() {

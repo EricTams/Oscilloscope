@@ -1782,7 +1782,7 @@ class ChessSorcererGame {
         this.drawText('CTRL-C: EXIT', 0.38, 0.05, 0.012);
     }
     
-    // AIDEV-NOTE: Drawing functions moved to chess_sorcerer_draw.js
+    // AIDEV-NOTE: Drawing functions moved to draw.js
     
     generateSegments() {
         this.segments = [];
@@ -1887,7 +1887,7 @@ class ChessSorcererGame {
         };
     }
     
-    // Drawing functions are in chess_sorcerer_draw.js and added to prototype
+    // Drawing functions are in draw.js and added to prototype
     
     drawText(text, x, y, size = 0.015) {
         const charWidth = size;
