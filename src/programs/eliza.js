@@ -54,9 +54,19 @@ class ElizaProgram {
         this.typingIndex = 0;
         
         // AIDEV-NOTE: Opening message from ELIZA - conditional based on game state
-        if (GameState.NeedsTransmitterExplained) {
-            this.addMessage('ELIZA', '[PLACEHOLDER] Transmitter greeting here.');
+        // Transmitter puzzle greetings (checked in order of progression)
+        // These are "situation critical" interrupts that override normal ELIZA behavior
+        if (GameState.FrequenciesProvided && GameState.ReplyReceived) {
+            // State C: Reply received, need to decode
+            this.addMessage('ELIZA', 'SITUATION CRITICAL. You are ranking communications officer. An encoded transmission is coming in but I cannot decode it. I need your help.');
+        } else if (GameState.TransmitterInitialized && !GameState.FrequenciesProvided) {
+            // State B: Handshake received, waiting for analysis
+            this.addMessage('ELIZA', 'SITUATION CRITICAL. You are ranking communications officer. A three-tone handshake is repeating on 7.250 MHz. I need you to find the encoded frequencies.');
+        } else if (GameState.FixTransmitterCompleted && !GameState.TransmitterInitialized) {
+            // State A: Transmitter ready but not initialized
+            this.addMessage('ELIZA', 'SITUATION CRITICAL. You are ranking communications officer. The transmitter is online but requires initialization. Awaiting your order to send test signal.');
         } else {
+            // Default greeting (before transmitter puzzle)
             this.addMessage('ELIZA', 'Fault detected. Are you awake?');
         }
         
@@ -193,13 +203,28 @@ TIMESTAMP: ${new Date(this.lastLLMExchange.timestamp).toISOString()}
     }
     
     // AIDEV-NOTE: Called after each LLM response to update global game state based on category
+    // Check prompts.js for setsFlags arrays on categories
     onResponseUsed(category) {
         switch (category) {
             case 'PlayerDiscussStatus':
                 GameState.playerDiscussedStatus = true;
                 console.log('GameState: playerDiscussedStatus = true');
                 break;
-            // Add more category handlers here as needed
+                
+            case 'InitializeTransmitter':
+                // Player told Eliza to boot the transmitter
+                GameState.TransmitterInitialized = true;
+                GameState.SignalReceived = true;  // Enables ANALYZER command
+                console.log('GameState: TransmitterInitialized = true, SignalReceived = true');
+                break;
+                
+            case 'ProvideFrequencies':
+                // Player provided the correct frequencies
+                // AIDEV-NOTE: The LLM should only use this category if numbers are correct
+                GameState.FrequenciesProvided = true;
+                GameState.ReplyReceived = true;
+                console.log('GameState: FrequenciesProvided = true, ReplyReceived = true');
+                break;
         }
     }
     

@@ -777,13 +777,13 @@ const PUZZLES = {
         }
     },
     1: {
-        name: 'Mysterious Signal',
+        name: 'Transmitter Ready',
         setup: () => {
             GameState.reset();
             GameState.FixRecieverCompleted = true;
             GameState.FixTransmitterCompleted = true;
-            GameState.NeedsTransmitterExplained = true;
-            GameState.SignalReceived = true;  // Enables ANALYZER command
+            // Transmitter is ready but not yet initialized
+            // Player needs to talk to Eliza to start the test
         }
     }
 };
