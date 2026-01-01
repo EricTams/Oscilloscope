@@ -1,12 +1,16 @@
 // AIDEV-NOTE: Global game state - accessible from all modules
 // Session state only (not persisted across page reloads yet)
-// AIDEV-NOTE: Flags here control which LLM response categories are available
-// In prompts.js categories can have:
-//   requiresFlag: 'flagName' - only available when GameState.flagName === true
-//   removedByFlag: 'flagName' - removed when GameState.flagName === true
+// AIDEV-NOTE: Eliza uses goal/subgoal system for conversation flow
+// See prompts_opening.js, prompts_common.js for prompt definitions
 
 const GameState = {
-    // Conversation milestones
+    // AIDEV-NOTE: Eliza goal/subgoal state machine
+    // Goal = current story arc (e.g., 'opening', 'restore_power')
+    // Subgoal = current step within that arc
+    elizaGoal: 'opening',
+    elizaSubgoal: 'are_you_okay',
+    
+    // Conversation milestones (legacy - may be removed after full migration)
     playerDiscussedStatus: false,
     NeedsRoleReveal: false,  // After psych assessment, Eliza needs to reveal player's role
     NeedsSolarProgram: false,  // After role revealed, player needs to run Solar program
@@ -50,6 +54,10 @@ const GameState = {
     
     // Reset to initial state (call on new game or PUZZ 0)
     reset() {
+        // Reset Eliza goal/subgoal to beginning
+        this.elizaGoal = 'opening';
+        this.elizaSubgoal = 'are_you_okay';
+        
         this.playerDiscussedStatus = false;
         this.NeedsRoleReveal = false;
         this.NeedsSolarProgram = false;

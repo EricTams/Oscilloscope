@@ -55,9 +55,14 @@
     <script src="src/config.js"></script>
     <!-- LLM: secrets.js may not exist, so we handle the error gracefully -->
     <script src="src/secrets.js" onerror="console.log('secrets.js not found - LLM features disabled')"></script>
-    <script src="src/prompts.js"></script>
+    <!-- LLM prompts: goal/subgoal system -->
+    <script src="src/prompts/common.js"></script>
+    <script src="src/prompts/opening.js"></script>
+    <script src="src/prompts/unfinished.js"></script>
     <script src="src/llm.js"></script>
     <script src="src/gamestate.js"></script>
+    <script src="src/vitals.js"></script>
+    <script src="src/events.js"></script>
     <script src="src/shaders.js"></script>
     <script src="src/rendering/webgl.js"></script>
     <script src="src/rendering/vector_font.js"></script>

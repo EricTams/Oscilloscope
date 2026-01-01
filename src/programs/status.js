@@ -1,5 +1,6 @@
 // STATUS - Life Support Status Monitor with Heartbeat Display
 // AIDEV-NOTE: Program interface: init(), update(deltaTime), getSegments(), handleKey(key, down)
+// AIDEV-NOTE: Reads vitals from global VitalsSystem (so events can spike heartrate etc.)
 
 class StatusMonitor {
     constructor() {
@@ -7,28 +8,12 @@ class StatusMonitor {
         
         // Heartbeat waveform - fixed width, scan line overwrites
         this.heartbeatPhase = 0;
-        this.heartRate = 72;  // BPM
         this.waveformData = [];    // Full width array
         this.scanPosition = 0;     // Current draw position (0 to maxWidth)
         this.maxWidth = 200;
         
-        // Simulated vitals (slowly drift for visual interest)
-        this.vitals = {
-            oxygen: 94,
-            heartRate: 72,
-            bloodPressure: { sys: 120, dia: 80 },
-            temperature: 98.6,
-            respiration: 16
-        };
-        
-        // Hold status - exposed to vacuum
-        this.hold = {
-            oxygen: 0,
-            temperature: -270,  // Near absolute zero (space)
-            pressure: 0,
-            hullBreach: true
-        };
-        
+        // Hold status - will be read from EventSystem breach state
+        // AIDEV-NOTE: Breach starts when opening distress event triggers
         this.driftTime = 0;
         
         this.init();
@@ -41,6 +26,9 @@ class StatusMonitor {
         this.waveformData = new Array(this.maxWidth).fill(0);
         this.driftTime = 0;
         this.baselineDrift = 0;
+        
+        // Opening distress event is triggered from game.js after user interaction
+        // AIDEV-NOTE: Don't trigger here - wait for user interaction to unblock audio
     }
     
     handleKey(key, down) {
@@ -50,8 +38,12 @@ class StatusMonitor {
     update(deltaTime) {
         this.driftTime += deltaTime;
         
+        // Read heart rate from VitalsSystem (allows event-driven spikes)
+        // AIDEV-NOTE: VitalsSystem provides current values including any active spikes
+        const heartRate = (typeof VitalsSystem !== 'undefined') ? VitalsSystem.heartRate : 72;
+        
         // Update heartbeat phase
-        const beatDuration = 60.0 / this.heartRate;
+        const beatDuration = 60.0 / heartRate;
         this.heartbeatPhase += deltaTime / beatDuration;
         if (this.heartbeatPhase >= 1.0) {
             this.heartbeatPhase -= 1.0;
@@ -67,15 +59,6 @@ class StatusMonitor {
         if (this.scanPosition >= this.maxWidth) {
             this.scanPosition -= this.maxWidth;
         }
-        
-        // Slowly drift vitals for visual interest
-        this.vitals.oxygen = 94 + Math.sin(this.driftTime * 0.3) * 2;
-        this.vitals.heartRate = 72 + Math.sin(this.driftTime * 0.5) * 5;
-        this.heartRate = this.vitals.heartRate;
-        this.vitals.temperature = 98.6 + Math.sin(this.driftTime * 0.2) * 0.3;
-        this.vitals.respiration = 16 + Math.sin(this.driftTime * 0.4) * 2;
-        this.vitals.bloodPressure.sys = 120 + Math.sin(this.driftTime * 0.25) * 8;
-        this.vitals.bloodPressure.dia = 80 + Math.sin(this.driftTime * 0.3) * 5;
         
         // ECG baseline drift
         this.baselineDrift = Math.sin(this.driftTime * 0.15) * 0.08;
@@ -145,6 +128,9 @@ class StatusMonitor {
         const centerY = 0.70;
         const height = 0.15;
         
+        // Read from VitalsSystem
+        const heartRate = (typeof VitalsSystem !== 'undefined') ? VitalsSystem.heartRate : 72;
+        
         // Border box for waveform
         this.segments.push([startX, centerY + height + 0.02, endX, centerY + height + 0.02]);
         this.segments.push([startX, centerY - height - 0.02, endX, centerY - height - 0.02]);
@@ -153,7 +139,7 @@ class StatusMonitor {
         
         // Labels above the box
         this.drawText("ECG", startX, centerY + height + 0.05);
-        this.drawText("HR: " + Math.round(this.vitals.heartRate) + " BPM", 0.72, centerY + height + 0.05);
+        this.drawText("HR: " + Math.round(heartRate) + " BPM", 0.72, centerY + height + 0.05);
         
         // Draw the full waveform (scan line overwrites old data)
         const stepX = (endX - startX) / this.maxWidth;
@@ -185,27 +171,33 @@ class StatusMonitor {
         const barX = 0.32;
         const barW = 0.12;
         
+        // Read from VitalsSystem (includes event-driven spikes)
+        const vitals = (typeof VitalsSystem !== 'undefined') ? VitalsSystem : {
+            oxygen: 94, temperature: 98.6, respiration: 16,
+            bloodPressure: { sys: 120, dia: 80 }
+        };
+        
         this.drawText("CREW VITALS", x, y);
         y -= lineHeight;
         
         this.drawText("SPO2:", x, y);
-        this.drawText(this.vitals.oxygen.toFixed(0) + "%", x + 0.14, y);
-        this.drawBar(barX, y, barW, this.vitals.oxygen / 100);
+        this.drawText(vitals.oxygen.toFixed(0) + "%", x + 0.14, y);
+        this.drawBar(barX, y, barW, vitals.oxygen / 100);
         y -= lineHeight;
         
         this.drawText("TEMP:", x, y);
-        this.drawText(this.vitals.temperature.toFixed(1) + "F", x + 0.14, y);
-        this.drawBar(barX, y, barW, (this.vitals.temperature - 95) / 10);
+        this.drawText(vitals.temperature.toFixed(1) + "F", x + 0.14, y);
+        this.drawBar(barX, y, barW, (vitals.temperature - 95) / 10);
         y -= lineHeight;
         
         this.drawText("RESP:", x, y);
-        this.drawText(Math.round(this.vitals.respiration) + "/M", x + 0.14, y);
-        this.drawBar(barX, y, barW, this.vitals.respiration / 30);
+        this.drawText(Math.round(vitals.respiration) + "/M", x + 0.14, y);
+        this.drawBar(barX, y, barW, vitals.respiration / 30);
         y -= lineHeight;
         
         this.drawText("BP:", x, y);
-        this.drawText(Math.round(this.vitals.bloodPressure.sys) + "/" + 
-                      Math.round(this.vitals.bloodPressure.dia), x + 0.14, y);
+        this.drawText(Math.round(vitals.bloodPressure.sys) + "/" + 
+                      Math.round(vitals.bloodPressure.dia), x + 0.14, y);
     }
     
     drawHold() {
@@ -229,26 +221,33 @@ class StatusMonitor {
         this.drawText("HOLD STATUS", x, y);
         y -= lineHeight;
         
-        // Oxygen - 0% (vacuum)
+        // Read breach state from EventSystem (decays from normal to vacuum)
+        const breach = (typeof EventSystem !== 'undefined' && EventSystem.getBreachState) 
+            ? EventSystem.getBreachState() 
+            : { oxygen: 21, temperature: 20, pressure: 1.0, hullBreach: false };
+        
+        // Oxygen - decays from 21% to 0%
         this.drawText("O2:", x, y);
-        this.drawText(this.hold.oxygen.toFixed(0) + "%", x + 0.14, y);
-        this.drawBar(barX, y, barW, this.hold.oxygen / 100);
+        this.drawText(breach.oxygen.toFixed(0) + "%", x + 0.14, y);
+        this.drawBar(barX, y, barW, breach.oxygen / 100);
         y -= lineHeight;
         
-        // Temperature - near absolute zero
+        // Temperature - decays from 20C to -270C
         this.drawText("TEMP:", x, y);
-        this.drawText(Math.round(this.hold.temperature) + "C", x + 0.14, y);
-        this.drawBar(barX, y, barW, 0);
+        this.drawText(Math.round(breach.temperature) + "C", x + 0.14, y);
+        // Bar shows normalized temperature (0 = extreme, 1 = normal)
+        const tempNormalized = Math.max(0, Math.min(1, (breach.temperature + 270) / 290));
+        this.drawBar(barX, y, barW, tempNormalized);
         y -= lineHeight;
         
-        // Pressure - vacuum
+        // Pressure - decays from 1.0 ATM to 0 ATM
         this.drawText("PRES:", x, y);
-        this.drawText(this.hold.pressure.toFixed(1) + " ATM", x + 0.14, y);
-        this.drawBar(barX, y, barW, this.hold.pressure);
+        this.drawText(breach.pressure.toFixed(1) + " ATM", x + 0.14, y);
+        this.drawBar(barX, y, barW, breach.pressure);
         y -= lineHeight;
         
-        // Hull breach warning
-        if (this.hold.hullBreach) {
+        // Hull breach warning (blinks when breach is active)
+        if (breach.hullBreach) {
             // Blink the warning
             if (Math.floor(this.driftTime * 2) % 2 === 0) {
                 this.drawText("!! BREACH !!", x + 0.05, y);

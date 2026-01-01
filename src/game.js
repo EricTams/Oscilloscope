@@ -664,6 +664,7 @@ function enterCommandMode() {
 
 // Ambient artifact state - random fluctuations for damaged station feel
 // AIDEV-NOTE: Each artifact has its own phase and speed for organic variation
+// Exposed to window so EventSystem can disable during spikes
 const ambientArtifacts = {
     enabled: true,
     time: 0,
@@ -674,6 +675,7 @@ const ambientArtifacts = {
     interference: { phase: Math.random() * 100, speed: 0.15, min: 0.0, max: 0.2  },
     jitter:       { phase: Math.random() * 100, speed: 0.4,  min: 0.0, max: 0.15 },
 };
+window.ambientArtifacts = ambientArtifacts;
 
 function updateAmbientArtifacts(deltaTime) {
     if (!ambientArtifacts.enabled || !oscilloscope) return;
@@ -705,6 +707,9 @@ function updateAmbientArtifacts(deltaTime) {
 function gameLoop(currentTime) {
     const deltaTime = (currentTime - lastFrameTime) / 1000.0;
     lastFrameTime = currentTime;
+    
+    // Update event system (handles vitals decay, scripted sequences)
+    EventSystem.update(deltaTime);
     
     // Update ambient artifacts (damaged station ambience)
     updateAmbientArtifacts(deltaTime);
@@ -1099,6 +1104,9 @@ function initGame() {
     // AIDEV-NOTE: Programs with persistent state should register their defaults here
     SolarProgram.initDefaults();
     
+    // Initialize event system (preloads sounds)
+    EventSystem.init();
+    
     // Initialize background music (will start on first user interaction)
     initBackgroundMusic();
     
@@ -1157,8 +1165,20 @@ function initGame() {
             // Ctrl+D for debug in Direct Mode (must prevent browser bookmark action)
             if (e.ctrlKey && (e.key === 'd' || e.key === 'D')) {
                 e.preventDefault();
-                if (currentMode === MODE_DIRECT && directModeProgram && directModeProgram.copyDebugToClipboard) {
-                    directModeProgram.copyDebugToClipboard();
+                if (currentMode === MODE_DIRECT && directModeProgram) {
+                    if (directModeProgram.copyDebugToClipboard) {
+                        directModeProgram.copyDebugToClipboard();
+                    }
+                }
+                return;
+            }
+            
+            // Ctrl+L for copying full log/transcript (ELIZA only)
+            // AIDEV-NOTE: Must prevent browser's "Focus Address Bar" action
+            if (e.ctrlKey && (e.key === 'l' || e.key === 'L')) {
+                e.preventDefault();
+                if (currentMode === MODE_DIRECT && directModeProgram && directModeProgram.copyFullDialogToClipboard) {
+                    directModeProgram.copyFullDialogToClipboard();
                 }
                 return;
             }
@@ -1201,10 +1221,25 @@ function initGame() {
         lastFrameTime = performance.now();
         animationFrameId = requestAnimationFrame(gameLoop);
         
-        // Start in STATUS program
-        setTimeout(() => {
-            enterDirectMode(statusMonitor, 'STATUS');
-        }, 100);
+        // Wait for LLM setup interaction before launching STATUS
+        // AIDEV-NOTE: This ensures user has interacted with page (unblocks audio autoplay)
+        // The 'llm-setup-complete' event fires when user clicks any button (save, continue, skip)
+        window.addEventListener('llm-setup-complete', () => {
+            console.log('LLM setup complete - launching STATUS');
+            // Launch STATUS after user interaction (allows sound to play)
+            setTimeout(() => {
+                enterDirectMode(statusMonitor, 'STATUS');
+                
+                // Trigger opening distress event after STATUS is visible
+                // AIDEV-NOTE: User has already interacted, so audio will play
+                setTimeout(() => {
+                    console.log('Triggering opening distress event (user has interacted)');
+                    if (typeof EventSystem !== 'undefined' && oscilloscope) {
+                        EventSystem.triggerOpeningDistress(oscilloscope);
+                    }
+                }, 1500);  // 1.5 second delay - let player orient first
+            }, 100);
+        }, { once: true });
         
         // Expose for debugging
         window.Game = {

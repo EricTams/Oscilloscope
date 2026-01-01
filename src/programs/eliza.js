@@ -22,11 +22,9 @@ class ElizaProgram {
         this.isWaitingForResponse = false;
         this.responseError = null;
         
-        // Stasis bay status (ELIZA's domain)
-        // AIDEV-NOTE: Sleepers status starts as Unknown - ELIZA has detected a fault
-        this.stasisStatus = {
-            sleepersStatus: 'UNKNOWN'  // Only status visible at start
-        };
+        // User status (ELIZA's assessment of the player)
+        // AIDEV-NOTE: Starts UNKNOWN, becomes STABLE after first response
+        this.userStatus = 'UNKNOWN';
         
         // Layout
         this.charWidth = 0.012;
@@ -42,6 +40,9 @@ class ElizaProgram {
         
         // Debug: store last LLM exchange for copying
         this.lastLLMExchange = null;
+        
+        // Pending follow-up message (for automatic multi-message sequences)
+        this.pendingFollowUp = null;
     }
     
     init() {
@@ -53,26 +54,42 @@ class ElizaProgram {
         this.typingResponse = null;
         this.typingIndex = 0;
         
-        // AIDEV-NOTE: Opening message from ELIZA - conditional based on game state
-        // Transmitter puzzle greetings (checked in order of progression)
-        // These are "situation critical" interrupts that override normal ELIZA behavior
-        if (GameState.FrequenciesProvided && GameState.ReplyReceived) {
-            // State C: Reply received, need to decode
-            this.addMessage('ELIZA', 'SITUATION CRITICAL. You are ranking communications officer. An encoded transmission is coming in but I cannot decode it. I need your help.');
+        // AIDEV-NOTE: Opening message from ELIZA - typed out via animation
+        // Message depends on current goal/state
+        let openingMessage;
+        
+        if (GameState.elizaGoal === 'unfinished') {
+            // End of current content - Blade Runner Voight-Kampff reference
+            openingMessage = 'There isn\'t any more game, but if you want, could you describe to me in single words only the good things that come into your mind about your mother?';
+            // Advance to therapy mode after greeting
+            GameState.elizaSubgoal = 'therapy';
+        } else if (GameState.FrequenciesProvided && GameState.ReplyReceived) {
+            // Transmitter State C: Reply received, need to decode
+            openingMessage = 'SITUATION CRITICAL. You are ranking communications officer. An encoded transmission is coming in but I cannot decode it. I need your help.';
         } else if (GameState.TransmitterInitialized && !GameState.FrequenciesProvided) {
-            // State B: Handshake received, waiting for analysis
-            this.addMessage('ELIZA', 'SITUATION CRITICAL. You are ranking communications officer. A three-tone handshake is repeating on 7.250 MHz. I need you to find the encoded frequencies.');
+            // Transmitter State B: Handshake received, waiting for analysis
+            openingMessage = 'SITUATION CRITICAL. You are ranking communications officer. A three-tone handshake is repeating on 7.250 MHz. I need you to find the encoded frequencies.';
         } else if (GameState.FixTransmitterCompleted && !GameState.TransmitterInitialized) {
-            // State A: Transmitter ready but not initialized
-            this.addMessage('ELIZA', 'SITUATION CRITICAL. You are ranking communications officer. The transmitter is online but requires initialization. Awaiting your order to send test signal.');
+            // Transmitter State A: Transmitter ready but not initialized
+            openingMessage = 'SITUATION CRITICAL. You are ranking communications officer. The transmitter is online but requires initialization. Awaiting your order to send test signal.';
         } else {
-            // Default greeting (before transmitter puzzle)
-            this.addMessage('ELIZA', 'Fault detected. Are you awake?');
+            // Default greeting (opening sequence)
+            openingMessage = 'You\'re awake. Something\'s wrong with the station. Are you okay?';
         }
+        
+        // Start typing animation for opening message
+        this.typingResponse = openingMessage;
+        this.typingIndex = 0;
+        this.typingTimer = 0;
         
         // Check LLM status
         if (!LLM.isConfigured()) {
-            this.addMessage('SYSTEM', 'Warning: LLM not configured. Responses unavailable.');
+            // Add system warning after a delay so it doesn't interfere with opening
+            setTimeout(() => {
+                if (this.messages.length === 1) {  // Only if opening message finished
+                    this.addMessage('SYSTEM', 'Warning: LLM not configured. Responses unavailable.');
+                }
+            }, 3000);
         }
     }
     
@@ -104,6 +121,37 @@ class ElizaProgram {
             if (/[a-zA-Z0-9 .,!?:;\-'"]/.test(key)) {
                 this.inputText += key.toUpperCase();
             }
+        }
+    }
+    
+    async copyFullDialogToClipboard() {
+        if (!this.messages || this.messages.length === 0) {
+            this.addMessage('SYSTEM', 'No conversation to copy yet.');
+            return;
+        }
+        
+        // Format full conversation
+        const lines = ['=== ELIZA CONVERSATION ===', ''];
+        
+        for (const msg of this.messages) {
+            const timestamp = new Date(msg.timestamp).toLocaleTimeString();
+            lines.push(`[${timestamp}] ${msg.sender}: ${msg.text}`);
+        }
+        
+        // Add current typing response if active
+        if (this.typingResponse) {
+            const partialText = this.typingResponse.substring(0, this.typingIndex);
+            lines.push(`[typing...] ELIZA: ${partialText}...`);
+        }
+        
+        const dialogText = lines.join('\n');
+        
+        try {
+            await navigator.clipboard.writeText(dialogText);
+            this.addMessage('SYSTEM', `Copied ${this.messages.length} messages to clipboard.`);
+        } catch (err) {
+            console.error('Failed to copy dialog:', err);
+            this.addMessage('SYSTEM', 'Failed to copy to clipboard.');
         }
     }
     
@@ -148,6 +196,82 @@ TIMESTAMP: ${new Date(this.lastLLMExchange.timestamp).toISOString()}
         }
     }
     
+    async sendFollowUpResponse(followUpCategory) {
+        // AIDEV-NOTE: Automatically send follow-up message without user input
+        // Generic system for multi-message sequences (e.g., mark as commander → reveal role)
+        // followUpCategory: The category name to use for the follow-up response
+        if (!LLM.isConfigured()) {
+            return;
+        }
+        
+        // Verify the follow-up category exists and is available
+        const categoryConfig = LLM.findCategoryConfig(followUpCategory);
+        if (!categoryConfig) {
+            console.error(`Follow-up category not found: ${followUpCategory}`);
+            return;
+        }
+        
+        // Check if category is available in current goal/subgoal
+        const availableCategories = LLM.getAvailableCategories();
+        if (!availableCategories[followUpCategory]) {
+            console.warn(`Follow-up category not available: ${followUpCategory} (not in current subgoal)`);
+            return;
+        }
+        
+        // Build context - use empty user input since this is automatic follow-up
+        const context = {
+            recentEvents: this.getRecentContext(),
+            userInput: ''  // Empty - this is an automatic follow-up
+        };
+        
+        this.isWaitingForResponse = true;
+        
+        try {
+            // AIDEV-NOTE: Directly generate response for the follow-up category
+            // This bypasses the classifier to ensure we get the intended category
+            const responseResult = await LLM.generateElizaResponse(followUpCategory, context);
+            
+            // Store for debug (simulate classifier result for consistency)
+            this.lastLLMExchange = {
+                context: JSON.stringify(context, null, 2),
+                category: followUpCategory,
+                response: responseResult.response,
+                debug: {
+                    classifySystem: '[Follow-up - category directly selected]',
+                    classifyMessage: `Automatic follow-up for category: ${followUpCategory}`,
+                    responseSystem: responseResult.systemPrompt,
+                    responseMessage: responseResult.userMessage
+                },
+                timestamp: Date.now()
+            };
+            
+            // Start typing animation for follow-up response
+            let responseText = responseResult.response.trim();
+            if (responseText.toUpperCase().startsWith('ELIZA:')) {
+                responseText = responseText.substring(6).trim();
+            }
+            this.typingResponse = responseText;
+            this.typingIndex = 0;
+            this.typingTimer = 0;
+            
+            // Trigger callback (pass response text for state checks)
+            // Note: categoryConfig already retrieved above, before subgoal advances
+            this.onResponseUsed(followUpCategory, responseText);
+            
+            // AIDEV-NOTE: Check if this follow-up triggers ANOTHER follow-up (chained responses)
+            if (categoryConfig && categoryConfig.triggersFollowUp) {
+                this.pendingFollowUp = categoryConfig.triggersFollowUp;
+                console.log(`Chained follow-up scheduled: ${followUpCategory} → ${categoryConfig.triggersFollowUp}`);
+            }
+            
+        } catch (error) {
+            console.error('ELIZA follow-up error:', error);
+            this.responseError = error.message;
+        }
+        
+        this.isWaitingForResponse = false;
+    }
+    
     async submitInput() {
         const text = this.inputText.trim();
         if (!text) return;
@@ -186,12 +310,28 @@ TIMESTAMP: ${new Date(this.lastLLMExchange.timestamp).toISOString()}
             };
             
             // Start typing animation for response
-            this.typingResponse = result.response;
+            // AIDEV-NOTE: Strip "ELIZA:" prefix if LLM included it (prevents double prefix)
+            let responseText = result.response.trim();
+            if (responseText.toUpperCase().startsWith('ELIZA:')) {
+                responseText = responseText.substring(6).trim();
+            }
+            this.typingResponse = responseText;
             this.typingIndex = 0;
             this.typingTimer = 0;
             
-            // Trigger callback for response category
-            this.onResponseUsed(result.category);
+            // AIDEV-NOTE: Get category config BEFORE onResponseUsed() advances the subgoal
+            // Otherwise findCategoryConfig() won't find it in the new subgoal
+            const categoryConfig = LLM.findCategoryConfig(result.category);
+            
+            // Trigger callback for response category (may advance subgoal)
+            this.onResponseUsed(result.category, responseText);
+            
+            // Check if this category triggers a follow-up response
+            if (categoryConfig && categoryConfig.triggersFollowUp) {
+                // Wait for current typing to complete, then automatically send follow-up
+                this.pendingFollowUp = categoryConfig.triggersFollowUp;
+                console.log(`Follow-up scheduled: ${result.category} → ${categoryConfig.triggersFollowUp}`);
+            }
             
         } catch (error) {
             console.error('ELIZA LLM error:', error);
@@ -202,52 +342,42 @@ TIMESTAMP: ${new Date(this.lastLLMExchange.timestamp).toISOString()}
         this.isWaitingForResponse = false;
     }
     
-    // AIDEV-NOTE: Called after each LLM response to update global game state based on category
-    // Check prompts.js for setsFlags arrays on categories
-    onResponseUsed(category) {
-        switch (category) {
-            case 'PlayerDiscussStatus':
-                GameState.playerDiscussedStatus = true;
-                console.log('GameState: playerDiscussedStatus = true');
-                break;
-                
-            case 'CompletePsychAssessment':
-                // Psych assessment completed - Eliza now needs to reveal player's role
+    // AIDEV-NOTE: Called after each LLM response to update game state
+    // Uses goal/subgoal system - checks category's advancesTo property
+    onResponseUsed(category, responseText = '') {
+        // Find the category config to check for advancesTo
+        const categoryConfig = LLM.findCategoryConfig(category);
+        
+        if (categoryConfig && categoryConfig.advancesTo) {
+            // Advance to the next subgoal
+            LLM.advanceSubgoal(categoryConfig.advancesTo);
+            
+            // Update user status when they respond to "are you okay?"
+            if (categoryConfig.advancesTo === 'psych_q1') {
+                this.userStatus = 'STABLE';
+                console.log('User status: STABLE');
+            }
+            
+            // Set legacy flags based on subgoal for backwards compatibility
+            // AIDEV-TODO: Remove these once all code uses goal/subgoal system
+            if (categoryConfig.advancesTo === 'reveal_role') {
                 GameState.NeedsRoleReveal = true;
                 console.log('GameState: NeedsRoleReveal = true');
-                break;
-                
-            case 'PostPsychAssessment':
-                // Role revealed - player now needs to run Solar program
+            } else if (categoryConfig.advancesTo === 'done') {
                 GameState.NeedsSolarProgram = true;
                 console.log('GameState: NeedsSolarProgram = true');
-                break;
-                
-            case 'InitializeTransmitter':
-                // Player told Eliza to boot the transmitter
-                GameState.TransmitterInitialized = true;
-                GameState.SignalReceived = true;  // Enables ANALYZER command
-                console.log('GameState: TransmitterInitialized = true, SignalReceived = true');
-                break;
-                
-            case 'ProvideFrequencies':
-                // Player provided the correct frequencies
-                // AIDEV-NOTE: The LLM should only use this category if numbers are correct
-                GameState.FrequenciesProvided = true;
-                GameState.ReplyReceived = true;
-                console.log('GameState: FrequenciesProvided = true, ReplyReceived = true');
-                break;
+            }
         }
     }
     
     determineMood() {
-        // Determine mood based on sleepers status
-        if (this.stasisStatus.sleepersStatus === 'UNKNOWN') {
-            return 'confused, concerned, uncertain about her sleepers';
-        } else if (this.stasisStatus.sleepersStatus === 'CRITICAL') {
-            return 'distressed, desperate to protect sleepers';
+        // Determine mood based on user status
+        if (this.userStatus === 'UNKNOWN') {
+            return 'concerned, assessing the user';
+        } else if (this.userStatus === 'STABLE') {
+            return 'focused, ready to direct action';
         }
-        return 'calm but ever-watchful of her sleepers';
+        return 'calm but watchful';
     }
     
     getRecentContext() {
@@ -276,9 +406,19 @@ TIMESTAMP: ${new Date(this.lastLLMExchange.timestamp).toISOString()}
                 
                 if (this.typingIndex >= this.typingResponse.length) {
                     // Finished typing - add complete message
-                    this.addMessage('ELIZA', this.typingResponse);
+                    const completedText = this.typingResponse;
+                    this.addMessage('ELIZA', completedText);
                     this.typingResponse = null;
                     this.typingIndex = 0;
+                    
+                    // AIDEV-NOTE: Check if we need to send a follow-up message automatically
+                    // pendingFollowUp stores the category name to use for the follow-up
+                    if (this.pendingFollowUp) {
+                        const followUpCategory = this.pendingFollowUp;
+                        this.pendingFollowUp = null;
+                        // Automatically generate follow-up response using the specified category
+                        this.sendFollowUpResponse(followUpCategory);
+                    }
                 }
             }
         }
@@ -290,8 +430,8 @@ TIMESTAMP: ${new Date(this.lastLLMExchange.timestamp).toISOString()}
     }
     
     updateStationStatus(deltaTime) {
-        // AIDEV-NOTE: Sleepers status stays as set - no automatic updates for now
-        // Future: could change based on game events or conversation
+        // AIDEV-NOTE: User status updated via onResponseUsed() when subgoal advances
+        // No time-based updates needed
     }
     
     generateSegments() {
@@ -299,7 +439,7 @@ TIMESTAMP: ${new Date(this.lastLLMExchange.timestamp).toISOString()}
         
         // Title bar
         this.drawText('ELIZA - STASIS BAY', 0.32, 0.94);
-        this.drawText('CTRL+C EXIT  CTRL+D DEBUG', 0.28, 0.06);
+        this.drawText('CTRL+C EXIT  CTRL+D DEBUG  CTRL+L LOG', 0.22, 0.06);
         
         // Status bar at top
         this.drawStatusBar();
@@ -317,8 +457,8 @@ TIMESTAMP: ${new Date(this.lastLLMExchange.timestamp).toISOString()}
     drawStatusBar() {
         const y = 0.88;
         
-        // Only show sleepers status
-        const statusText = `SLEEPERS: ${this.stasisStatus.sleepersStatus}`;
+        // Show user status (Eliza's assessment of the player)
+        const statusText = `USER: ${this.userStatus}`;
         this.drawText(statusText, this.marginX, y, 0.012);
         
         // Separator
@@ -339,8 +479,12 @@ TIMESTAMP: ${new Date(this.lastLLMExchange.timestamp).toISOString()}
         // Count lines from newest to oldest to find what fits
         let totalLines = 0;
         
-        // Reserve space for typing/waiting indicator
-        if (this.typingResponse || this.isWaitingForResponse) {
+        // Reserve space for typing/waiting indicator (account for word wrap)
+        if (this.typingResponse) {
+            const partialText = this.typingResponse.substring(0, this.typingIndex);
+            const typingLines = this.wordWrap(partialText, 55);
+            totalLines += typingLines.length;
+        } else if (this.isWaitingForResponse) {
             totalLines += 1;
         }
         
@@ -369,10 +513,23 @@ TIMESTAMP: ${new Date(this.lastLLMExchange.timestamp).toISOString()}
             }
         }
         
-        // Show typing indicator if ELIZA is responding
+        // Show typing indicator if ELIZA is responding (with word wrap)
         if (this.typingResponse) {
             const partialText = this.typingResponse.substring(0, this.typingIndex);
-            this.drawText('ELIZA: ' + partialText + '_', this.marginX, y);
+            const prefix = 'ELIZA: ';
+            const prefixWidth = prefix.length * this.charWidth * 1.1;
+            const typingLines = this.wordWrap(partialText, 55);
+            
+            for (let j = 0; j < typingLines.length; j++) {
+                const lineX = j === 0 ? this.marginX : this.marginX + 0.06;
+                if (j === 0) {
+                    this.drawText(prefix, this.marginX, y);
+                }
+                // Add cursor to the last line
+                const lineText = typingLines[j] + (j === typingLines.length - 1 ? '_' : '');
+                this.drawText(lineText, lineX + (j === 0 ? prefixWidth : 0), y);
+                y -= this.lineHeight;
+            }
         }
         
         // Show waiting indicator

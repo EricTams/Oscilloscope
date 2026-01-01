@@ -228,6 +228,11 @@ class SolarProgram {
         // Check if we've achieved LOW power status
         if (avgPower >= SOLAR_POWER_CRITICAL && !GameState.SolarAligned) {
             GameState.SolarAligned = true;
+            
+            // AIDEV-NOTE: Power restored - transition to 'unfinished' goal (end of current content)
+            GameState.elizaGoal = 'unfinished';
+            GameState.elizaSubgoal = 'greeting';
+            console.log('Power restored - Eliza goal: unfinished/greeting');
         }
     }
     

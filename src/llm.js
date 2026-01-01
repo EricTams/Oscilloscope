@@ -194,25 +194,62 @@ const LLM = {
     },
 
     /**
-     * Get available categories based on GameState flags
+     * Get the goal prompts object for the current goal
+     * @returns {Object|null} Goal prompts object or null
+     */
+    getGoalPrompts() {
+        const goal = GameState.elizaGoal;
+        
+        // Map goal names to their prompt objects
+        // AIDEV-NOTE: Add new goal files here as they're created
+        const goalMap = {
+            'opening': typeof PROMPTS_OPENING !== 'undefined' ? PROMPTS_OPENING : null,
+            'unfinished': typeof PROMPTS_UNFINISHED !== 'undefined' ? PROMPTS_UNFINISHED : null
+        };
+        
+        return goalMap[goal] || null;
+    },
+
+    /**
+     * Get available categories based on current goal/subgoal
+     * Merges common categories with goal-specific categories for current subgoal
      * @returns {Object} Map of category name to category config
      */
     getAvailableCategories() {
         const available = {};
         
-        for (const [name, config] of Object.entries(PROMPTS.categories)) {
-            // Check requiresFlag - if set, GameState[flag] must be true
-            if (config.requiresFlag && !GameState[config.requiresFlag]) {
-                continue;
+        // 1. Add common categories (always available)
+        if (typeof PROMPTS_COMMON !== 'undefined' && PROMPTS_COMMON.categories) {
+            for (const [name, config] of Object.entries(PROMPTS_COMMON.categories)) {
+                available[name] = config;
             }
-            // Check removedByFlag - if set and true, skip this category
-            if (config.removedByFlag && GameState[config.removedByFlag]) {
-                continue;
-            }
-            available[name] = config;
         }
         
+        // 2. Add categories from current goal/subgoal
+        const goalPrompts = this.getGoalPrompts();
+        if (goalPrompts && goalPrompts.subgoals) {
+            const subgoal = GameState.elizaSubgoal;
+            const subgoalConfig = goalPrompts.subgoals[subgoal];
+            
+            if (subgoalConfig && subgoalConfig.categories) {
+                for (const [name, config] of Object.entries(subgoalConfig.categories)) {
+                    available[name] = config;
+                }
+            }
+        }
+        
+        console.log(`Available categories for ${GameState.elizaGoal}/${GameState.elizaSubgoal}:`, Object.keys(available).join(', '));
         return available;
+    },
+
+    /**
+     * Advance to the next subgoal
+     * @param {string} nextSubgoal - The subgoal to advance to
+     */
+    advanceSubgoal(nextSubgoal) {
+        const oldSubgoal = GameState.elizaSubgoal;
+        GameState.elizaSubgoal = nextSubgoal;
+        console.log(`Subgoal advanced: ${oldSubgoal} → ${nextSubgoal}`);
     },
 
     /**
@@ -225,28 +262,107 @@ const LLM = {
             .map(([name, config]) => `${name} - ${config.description}`)
             .join('\n');
         
-        return PROMPTS.classifierBase.prefix + categoryLines + PROMPTS.classifierBase.suffix;
+        // Use PROMPTS_COMMON for classifier base
+        const base = PROMPTS_COMMON.classifierBase;
+        return base.prefix + categoryLines + base.suffix;
     },
 
     /**
+     * Check if there's a critical alert/emergency active
+     * @returns {Object} { isCritical: boolean, alerts: string[] }
+     */
+    getEmergencyState() {
+        const alerts = [];
+        
+        // Check for hull breach
+        if (typeof EventSystem !== 'undefined' && EventSystem.breach && EventSystem.breach.active) {
+            alerts.push('hull breach');
+        }
+        
+        // Check for critical power
+        if (GameState.powerLevel < 2.4) {
+            alerts.push('critical power');
+        }
+        
+        // Check for critical vitals (if player is in distress)
+        if (typeof VitalsSystem !== 'undefined') {
+            const heartRate = VitalsSystem.heartRate;
+            if (heartRate > 120) {  // Elevated heart rate indicates distress
+                alerts.push('elevated vitals');
+            }
+        }
+        
+        return {
+            isCritical: alerts.length > 0,
+            alerts: alerts
+        };
+    },
+    
+    /**
      * Classify user input into a category
-     * AIDEV-NOTE: Categories are filtered based on GameState flags
+     * AIDEV-NOTE: Categories are filtered based on goal/subgoal
      * @param {Object} context - Context with userInput and recentEvents
      * @returns {Promise<{category: string, systemPrompt: string, userMessage: string}>}
      */
     async classifyInput(context) {
         const systemPrompt = this.buildClassifierPrompt();
-        const userMessage = this.fillTemplate(PROMPTS.classifierBase.template, context);
+        
+        // Add emergency state to context for classifier
+        const emergencyState = this.getEmergencyState();
+        const enhancedContext = {
+            ...context,
+            emergencyState: emergencyState.isCritical ? `CRITICAL ALERT ACTIVE: ${emergencyState.alerts.join(', ')}` : 'No critical alerts'
+        };
+        
+        // Use PROMPTS_COMMON for classifier template
+        const userMessage = this.fillTemplate(PROMPTS_COMMON.classifierBase.template, enhancedContext);
         const result = await this.request(systemPrompt, userMessage, { 
             max_tokens: 20, 
             temperature: 0 
         });
+        
         // Clean up response - should be just the category name
+        let category = result.trim();
+        
+        // AIDEV-NOTE: Validate that the selected category is actually available
+        // This prevents skipping ahead if LLM selects unavailable category
+        const availableCategories = this.getAvailableCategories();
+        if (!availableCategories[category]) {
+            console.warn(`Classifier selected unavailable category: ${category}. Available: ${Object.keys(availableCategories).join(', ')}`);
+            // Fall back to PlayerOther (always available via common)
+            category = 'PlayerOther';
+            console.log(`Falling back to: ${category}`);
+        }
+        
         return {
-            category: result.trim(),
+            category,
             systemPrompt,
             userMessage
         };
+    },
+
+    /**
+     * Find a category config by name (searches common and goal/subgoal categories)
+     * @param {string} category - Category name
+     * @returns {Object|null} Category config or null
+     */
+    findCategoryConfig(category) {
+        // Check common categories first
+        if (PROMPTS_COMMON.categories && PROMPTS_COMMON.categories[category]) {
+            return PROMPTS_COMMON.categories[category];
+        }
+        
+        // Check current goal/subgoal categories
+        const goalPrompts = this.getGoalPrompts();
+        if (goalPrompts && goalPrompts.subgoals) {
+            const subgoal = GameState.elizaSubgoal;
+            const subgoalConfig = goalPrompts.subgoals[subgoal];
+            if (subgoalConfig && subgoalConfig.categories && subgoalConfig.categories[category]) {
+                return subgoalConfig.categories[category];
+            }
+        }
+        
+        return null;
     },
 
     /**
@@ -256,14 +372,21 @@ const LLM = {
      * @returns {Promise<{response: string, systemPrompt: string, userMessage: string}>}
      */
     async generateElizaResponse(category, context) {
-        const categoryConfig = PROMPTS.categories[category];
+        const categoryConfig = this.findCategoryConfig(category);
         if (!categoryConfig) {
             // Fallback to PlayerOther if unknown category
             console.warn(`Unknown category: ${category}, falling back to PlayerOther`);
             return this.generateElizaResponse('PlayerOther', context);
         }
         
-        const userMessage = this.fillTemplate(categoryConfig.template, context);
+        // Add emergency state to context for response generation
+        const emergencyState = this.getEmergencyState();
+        const enhancedContext = {
+            ...context,
+            emergencyState: emergencyState.isCritical ? `CRITICAL ALERT ACTIVE: ${emergencyState.alerts.join(', ')}` : 'No critical alerts'
+        };
+        
+        const userMessage = this.fillTemplate(categoryConfig.template, enhancedContext);
         const response = await this.request(categoryConfig.system, userMessage, { 
             max_tokens: 80, 
             temperature: 0.8 
