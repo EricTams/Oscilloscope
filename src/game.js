@@ -928,6 +928,17 @@ const COMMANDS = {
             }, 500);
         }
     },
+    'REACTOR': {
+        description: 'Plasma containment reactor control',
+        action: () => {
+            terminal.println('LOADING REACTOR CONTROL...');
+            terminal.println('ARROWS=SELECT/ADJUST  SPACE=INJECT');
+            terminal.println('CTRL+C=QUIT');
+            setTimeout(() => {
+                enterDirectMode(reactorProgram, 'REACTOR');
+            }, 300);
+        }
+    },
     'ARTIFACTS': {
         description: 'Demo all visual artifacts',
         requiresDevMode: true,
