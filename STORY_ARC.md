@@ -6,6 +6,227 @@
 
 Define what's FUN to do, then wrap narrative around it. The player experiences everything through the oscilloscope terminal in their stasis pod. Every interaction is mediated through this green phosphor display.
 
+**Every task is a required gate.** No branching choices, no skippable content. Player agency comes from *how* they solve puzzles, not *whether* they engage.
+
+**Small tasks chain into bigger ones.** Each solved puzzle directly enables the next. The game flows as a continuous chain:
+
+```
+Small Task → Thing Comes Online → Small Task → Thing Comes Online → Bigger Puzzle → Story Beat → Repeat
+```
+
+**Eliza gives small, immediate asks.** Not mission dumps - just "can you do this one thing?" If the player hasn't done the required task, Eliza redirects them.
+
+---
+
+## Story Progression (Phases 1-3)
+
+### Phase 1: Awakening
+
+**Eliza Goal:** `opening` (implemented)
+
+| # | Task | Type | Enables |
+|---|------|------|---------|
+| 1 | Respond to Eliza's psych assessment | Conversation | Marked as commander |
+| 2 | Run SOLAR, align panels | Puzzle | Power to ~3% |
+| 3 | *Story beat: You're the Systems Engineer* | | |
+
+**Eliza asks:**
+- "Are you okay?"
+- "Can you make decisions under pressure?"
+- "Power is critical. Run Solar."
+
+**Programs Available:** STATUS, ELIZA, SOLAR
+
+---
+
+### Phase 2: Getting Systems Online
+
+**Eliza Goal:** `bootup`
+
+| # | Task | Type | Enables |
+|---|------|------|---------|
+| 4 | Run POWER, bring up critical systems | Management | Sensors, life support stable |
+| 5 | Allocate power to point defense | Management (POWER) | DEFENSE available |
+| 6 | Clear debris blocking antenna (3 pieces) | Action (DEFENSE) | Debris cleared |
+| 7 | Turn off point defense, turn on comms | Management (POWER) | Comms online |
+| 8 | *Story beat: Strange signal detected* | | |
+
+**Eliza asks:**
+- "We have enough power for basic systems. Run POWER."
+- "Good. Now bring point defense online - there's debris blocking the comm antenna."
+- "Three pieces blocking the antenna. Use DEFENSE to clear them."
+- [After debris cleared] "Debris clear. Bring comms online."
+- [If player talks to Eliza without enabling comms] "Comms are still offline. Check POWER."
+- [After comms enabled] "...I'm picking something up."
+
+**The POWER → DEFENSE → POWER flow:**
+- Player enables DEFENSE via POWER
+- Does the action task (destroy 3 debris pieces)
+- Must return to POWER themselves
+- Must turn OFF defense, turn ON comms (budget forces tradeoff)
+- If they skip this and talk to Eliza, she redirects them
+
+**Programs Unlocked:** POWER, DEFENSE
+
+---
+
+### Phase 3: First Contact
+
+**Eliza Goal:** `signal`
+
+| # | Task | Type | Enables |
+|---|------|------|---------|
+| 9 | Analyze incoming signal with ANALYZER | Puzzle | Frequencies identified |
+| 10 | Decode the pattern structure | Puzzle | Understand it's a handshake |
+| 11 | Compose response using correct frequencies | Puzzle | Response transmitted |
+| 12 | *Story beat: They acknowledged us* | | |
+
+**Eliza asks:**
+- "I can't make sense of this. You're the engineer - run ANALYZER."
+- "Three tones repeating. What are the frequencies?"
+- "Can you send those back? Match the pattern."
+- "...they responded. We're not alone."
+
+**Programs Unlocked:** ANALYZER (for signal work)
+
+---
+
+## Key Programs (Designed)
+
+### POWER - System Power Management
+
+**Available:** Phase 2 (after solar fix)
+
+**Three Power Tiers:**
+
+| Tier | When Available | Can Toggle? |
+|------|----------------|-------------|
+| CRITICAL | Always | No - always on |
+| LOW POWER | After solar fix (~3%) | Yes - on/off within budget |
+| FULL POWER | TBD (design when needed) | Yes - on/off within budget |
+
+**How it works:**
+- **Critical systems** are always on, can't be toggled (life support, basic computing)
+- **Low Power systems** unlock after solar fix - simple ON/OFF toggle
+- **Full Power systems** locked until later (TBD - design when needed)
+- **Power budget** limits how many systems you can have ON at once
+- Turning something ON might require turning something else OFF
+
+**Interface idea:**
+
+```
+═══════════════════════════════════════
+         POWER MANAGEMENT
+═══════════════════════════════════════
+MODE: LOW POWER         BUDGET: 12/20
+
+─── CRITICAL (always on) ──────────────
+  LIFE SUPPORT              [LOCKED]
+  BASIC COMPUTING           [LOCKED]
+
+─── LOW POWER (12/20 used) ────────────
+  SENSORS            ██     [ON ]
+  POINT DEFENSE      ███    [OFF]
+  COMMS              ██     [ON ]
+  EMERGENCY SEALS    █      [OFF]
+
+─── FULL POWER (TBD) ──────────────────
+  (design when needed)
+═══════════════════════════════════════
+    ↑↓ SELECT    ENTER TOGGLE    ESC EXIT
+```
+
+---
+
+### DEFENSE - Point Defense System
+
+**Program name:** `DEFENSE`
+
+**Available:** Phase 2 (after POWER brings it online)
+
+**What it does:**
+- Lo-fi wireframe 3D point defense targeting
+- Display shows debris field around comm antenna
+- **3 debris pieces** must be destroyed to clear the area
+- Crosshair to aim, fire to destroy
+- **Shots take time to reload** - encourages careful aiming
+
+**Gameplay:**
+- Player sees 3D wireframe view with debris highlighted
+- Aim crosshair at debris, fire
+- Miss = wait for reload, try again
+- Hit = satisfying destruction, debris count decreases
+- Clear all 3 = antenna can deploy
+
+**Eliza integration:**
+- Eliza has access to remaining debris count
+- Can give feedback: "Two more." / "One left." / "Clear. Deploying antenna."
+- Creates natural back-and-forth if player asks "how many left?"
+
+**Visual style:**
+- Green wireframe vectors (oscilloscope aesthetic)
+- Simple 3D perspective
+- Debris highlighted as targets
+- Reload indicator (charging bar?)
+- Satisfying "hit" feedback
+
+---
+
+## Speculative Future Content (Phases 4-7)
+
+**Note:** These phases are rough outlines. Design details TBD when we reach them.
+
+### Phase 4: Deterioration
+
+**Eliza Goal:** `survival`
+
+- Hull breach alert - reroute power to seal
+- Incoming debris - use DEFENSE under pressure
+- Power fluctuation - rebalance systems
+- *Story beat: Ship is worse than we thought + alien signal changes*
+
+**Reuses POWER and DEFENSE** under crisis conditions.
+
+---
+
+### Phase 5: External Investigation
+
+**Eliza Goal:** `investigation`
+
+- Allocate power to drone bay
+- Launch and navigate drone to damage site (DRONE program)
+- Discover something unexpected on hull
+- Access restricted ship logs (HEXEDIT)
+- *Story beat: The damage wasn't an accident*
+
+**New programs:** DRONE, HEXEDIT
+
+---
+
+### Phase 6: Establishing Communication
+
+**Eliza Goal:** `contact`
+
+- Decode alien vocabulary patterns
+- Build meaningful response (SIGNAL program)
+- Receive coordinates from aliens
+- Launch probe to coordinates (PROBE orbital mechanics)
+- *Story beat: They're guiding us somewhere*
+
+**New programs:** SIGNAL, PROBE
+
+---
+
+### Phase 7: Climax
+
+**Eliza Goal:** `endgame`
+
+- Multi-system crisis - everything at once
+- Final navigation/broadcast using all learned skills
+- *Story beat: Why they contacted us, resolution*
+
+**Tests mastery of all mechanics.**
+
 ---
 
 ## Core Gameplay Mechanics
@@ -173,7 +394,7 @@ To unlock a door, you need:
 
 ---
 
-### 6. Power Routing
+### 6. Power Routing (Original Brainstorm)
 
 **The fun:** Resource puzzle, trade-offs, making hard choices
 
@@ -209,6 +430,8 @@ To unlock a door, you need:
 - Tension of critical systems at minimum
 - Clever solutions (briefly sacrifice X to accomplish Y)
 
+**Note:** This evolved into our simpler POWER program with on/off toggles and power tiers.
+
 ---
 
 ### 7. Navigation Maneuver
@@ -243,32 +466,6 @@ To unlock a door, you need:
 
 ---
 
-## Existing Programs - Repurposed
-
-| Program | Original Purpose | New Purpose via Hacking |
-|---------|------------------|-------------------------|
-| ROCKS | Arcade game - shoot asteroids | Generate large numerical values via score |
-| MOONTAXI | Arcade game - ferry passengers | Generate text sequences via delivery order |
-| CHESS | Strategy game vs AI | Generate small integers (1-4) via difficulty |
-| ELIZA | Chat with stasis bay AI | Story driver, hints, emotional anchor |
-| STATUS | Life support display | Shows power state, hull breach, system health |
-| ANALYZER | FFT spectrum analyzer | Decode alien signals, find frequencies |
-
----
-
-## New Programs Needed
-
-| Program | Mechanic | Description |
-|---------|----------|-------------|
-| HEXEDIT | Memory Hacking | Memory scanner, value hunter, pointer redirector |
-| PROBE | Orbital Mechanics | Launch interface, trajectory planner |
-| DRONE | Remote EVA | External camera, wireframe view, battery management |
-| POWER | Power Routing | System allocation interface |
-| NAV | Navigation | Threat display, burn controls, maneuvering |
-| SIGNAL | Communication | Alien pattern vocabulary, response construction |
-
----
-
 ## How Mechanics Should Connect
 
 Mechanics shouldn't be isolated minigames - they should feed into each other.
@@ -298,32 +495,72 @@ This connects hacking and power naturally:
 
 ---
 
+## New Programs Needed
+
+| Program | Mechanic | Description |
+|---------|----------|-------------|
+| HEXEDIT | Memory Hacking | Memory scanner, value hunter, pointer redirector |
+| PROBE | Orbital Mechanics | Launch interface, trajectory planner |
+| DRONE | Remote EVA | External camera, wireframe view, battery management |
+| NAV | Navigation | Threat display, burn controls, maneuvering |
+| SIGNAL | Communication | Alien pattern vocabulary, response construction |
+
 ---
 
-## Opening Sequence (First Test)
+## Existing Programs - Repurposed
 
-Not set in stone - this is the first sequence to prototype and test.
+| Program | Original Purpose | New Purpose via Hacking |
+|---------|------------------|-------------------------|
+| ROCKS | Arcade game - shoot asteroids | Generate large numerical values via score |
+| MOONTAXI | Arcade game - ferry passengers | Generate text sequences via delivery order |
+| CHESS | Strategy game vs AI | Generate small integers (1-4) via difficulty |
+| ELIZA | Chat with stasis bay AI | Story driver, hints, emotional anchor |
+| STATUS | Life support display | Shows power state, hull breach, system health |
+| ANALYZER | FFT spectrum analyzer | Decode alien signals, find frequencies |
 
-1. Player awakens, seeing their status (STATUS program)
-2. Weird noise plays (sound effect needed), screen jitter/distortion spikes, player heartrate spikes
-   - Player vitals move to a global system for this
-3. Player can Ctrl-C out of STATUS back to base OS
-4. Only two commands unlocked: STATUS and ELIZA
-5. Player talks to Eliza
-   - Through conversation, player learns they're highest ranking crew member awake
-   - After short psych assessment, Eliza marks player as acting commander
-   - Eliza reveals: Player is the ranking Systems Engineer
-   - Eliza reports: Power is critical - solar panel array misaligned
-   - Eliza directs: Player must run 'Solar' program to check alignment and fix power supply
+---
+
+## Program Unlock Flow
+
+| When | Program | Purpose |
+|------|---------|---------|
+| Start | STATUS, ELIZA | Basic awareness, story |
+| Phase 1 | SOLAR | Fix power |
+| Phase 2 | POWER | System management (persistent) |
+| Phase 2 | DEFENSE | Point defense - clear debris, threats |
+| Phase 3 | ANALYZER | Decode signals |
+| Phase 5 | DRONE | External inspection |
+| Phase 5 | HEXEDIT | Access restricted data |
+| Phase 6 | SIGNAL, PROBE | Communicate, navigate |
+
+**Reused programs:**
+- POWER: Phase 2 (learn), Phase 4 (pressure), Phase 5 (enable drone), Phase 7 (crisis)
+- DEFENSE: Phase 2 (learn, 3 debris), Phase 4 (pressure, more debris), Phase 7 (crisis)
+
+**Arcade Games (ROCKS, MOONTAXI, CHESS):**
+- Unlock gradually as "entertainment" / stress relief
+- Become puzzle *tools* when HEXEDIT introduces memory hacking
+- Satisfying "aha" when player realizes games generate values for hacking
 
 ---
 
 ## Open Design Questions
 
-These need to be figured out during implementation, not speculated on now:
+These need to be figured out during implementation:
 
-- How do mechanics gate each other? (Design when building)
-- What game state flags are needed? (Emerge from implementation)
-- What's the exact progression order? (Playtest to find out)
-- Story details? (Fit around mechanics as they're built)
+1. **DEFENSE controls:** Keyboard aiming? Mouse? How "3D" does it feel?
+2. **How urgent is Phase 4?** Real-time pressure? Or just narrative urgency?
+3. **What's on the hull?** Alien device? Sabotage evidence? The mystery hook.
+4. **Alien motivation:** Why are they helping? Revealed at end or earlier?
+5. **Final resolution:** Rescue arrives? You reach safety? The answer to the mystery?
 
+---
+
+## What's NOT in the Design
+
+- No branching story paths (exponential design complexity)
+- No "choice" prompts that could soft-lock
+- No mission dumps from Eliza (one small ask at a time)
+- No arcade games as stand-ins for real tasks (DEFENSE is a real ship system)
+- No one-and-done mechanics (POWER and DEFENSE return under pressure)
+- No task that doesn't directly enable something

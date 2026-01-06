@@ -939,6 +939,18 @@ const COMMANDS = {
             }, 300);
         }
     },
+    'DEFENSE': {
+        description: 'Point defense turret control',
+        requiresFlag: 'DefenseUnlocked',
+        action: () => {
+            terminal.println('LOADING POINT DEFENSE...');
+            terminal.println('ARROWS=AIM  SPACE=FIRE');
+            terminal.println('CTRL+C=QUIT');
+            setTimeout(() => {
+                enterDirectMode(defenseProgram, 'DEFENSE');
+            }, 300);
+        }
+    },
     'ARTIFACTS': {
         description: 'Demo all visual artifacts',
         requiresDevMode: true,
