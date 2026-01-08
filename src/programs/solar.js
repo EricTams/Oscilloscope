@@ -6,7 +6,7 @@
 // Power constants
 const SOLAR_POWER_MIN = 1.1;      // Min power per functional panel (%)
 const SOLAR_POWER_MAX = 5.6;      // Max power when aligned to moon (%)
-const SOLAR_POWER_CRITICAL = 2.4; // Below this = CRITICAL status
+const SOLAR_POWER_CRITICAL = 2.0; // Below this = CRITICAL status
 
 // Panel rotation constants
 // Sun is on LEFT, panels start pointing RIGHT (0°), can rotate ±60° (120° arc)
@@ -50,8 +50,8 @@ class SolarProgram {
         // Planet closer to sun (left), moon further from sun (right)
         // Mass ratio affects L1 position: equal masses → L1 at midpoint
         this.star = { x: 0.50, y: 0.95, label: 'TAU CETI' };  // Star label at top
-        this.planet = { x: 0.25, y: 0.70, radius: 0.08, mass: 1.0, label: 'HAVEN' };  // Super-earth (moved up-right)
-        this.moon = { x: 0.85, y: 0.38, radius: 0.06, mass: 0.5, label: 'AEGIS' };    // Large moon (moved up-right)
+        this.planet = { x: 0.25, y: 0.72, radius: 0.065, mass: 1.0, label: 'HAVEN' };  // Super-earth
+        this.moon = { x: 0.85, y: 0.45, radius: 0.05, mass: 0.5, label: 'AEGIS' };     // Large moon
         
         // Calculate Lagrange points from planet-moon geometry
         this.lagrangePoints = this.calculateLagrangePoints(this.planet, this.moon);
@@ -95,25 +95,29 @@ class SolarProgram {
         
         const k = key.toLowerCase();
         
-        // Panel selection with left/right
-        if (k === 'arrowleft' || k === 'a') {
+        // Panel selection with up/down
+        if (k === 'arrowup' || k === 'w') {
             this.selectedPanel = (this.selectedPanel + 3) % 4;  // Wrap backwards
-        } else if (k === 'arrowright' || k === 'd') {
+            this.blinkTimer = 0;
+            this.blinkOn = true;
+        } else if (k === 'arrowdown' || k === 's') {
             this.selectedPanel = (this.selectedPanel + 1) % 4;  // Wrap forwards
+            this.blinkTimer = 0;
+            this.blinkOn = true;
         }
         
-        // Panel rotation with up/down (only for functional panels)
+        // Panel rotation with left/right (only for functional panels)
         // 120° arc: -60 to +60 degrees from pointing down
         const panel = this.panels[this.selectedPanel];
         if (!panel.offline) {
-            if (k === 'arrowup' || k === 'w') {
-                // Rotate panel (decrease angle toward -60)
-                panel.angle = Math.max(PANEL_ANGLE_MIN, panel.angle - PANEL_ANGLE_STEP);
+            if (k === 'arrowleft' || k === 'a') {
+                // Rotate panel counter-clockwise (increase angle toward +60)
+                panel.angle = Math.min(PANEL_ANGLE_MAX, panel.angle + PANEL_ANGLE_STEP);
                 this.savePanelAngles();
                 this.updatePanelPower();
-            } else if (k === 'arrowdown' || k === 's') {
-                // Rotate panel (increase angle toward +60)
-                panel.angle = Math.min(PANEL_ANGLE_MAX, panel.angle + PANEL_ANGLE_STEP);
+            } else if (k === 'arrowright' || k === 'd') {
+                // Rotate panel clockwise (decrease angle toward -60)
+                panel.angle = Math.max(PANEL_ANGLE_MIN, panel.angle - PANEL_ANGLE_STEP);
                 this.savePanelAngles();
                 this.updatePanelPower();
             }
@@ -344,20 +348,19 @@ class SolarProgram {
         // Draw status panel at bottom
         this.drawStatusPanel();
         
-        // Draw instructions
+        // Draw exit instruction
         this.drawText('EXIT: CTRL-C', 0.75, 0.96);
-        this.drawText('L/R: SELECT  U/D: ROTATE', 0.25, 0.03);
     }
     
     drawSunRays() {
-        const numRays = 9;
+        const numRays = 7;
         const startX = 0.02;
-        const endX = 0.12;
-        const arrowSize = 0.015;
+        const endX = 0.10;
+        const arrowSize = 0.012;
         
         // Draw arrows pointing right (sunlight from left)
         for (let i = 0; i < numRays; i++) {
-            const y = 0.15 + (i / (numRays - 1)) * 0.70;
+            const y = 0.35 + (i / (numRays - 1)) * 0.50;
             
             // Horizontal line
             this.segments.push([startX, y, endX, y]);
@@ -390,7 +393,7 @@ class SolarProgram {
             // Skip L1 - ship is positioned there
             if (name === 'L1') continue;
             
-            const size = 0.015;
+            const size = 0.012;
             
             // Draw X marker
             this.segments.push([
@@ -410,8 +413,8 @@ class SolarProgram {
     drawShip() {
         const x = this.ship.x;
         const y = this.ship.y;
-        const width = 0.025;   // Skinnier
-        const height = 0.07;   // Longer (to sit between panels)
+        const width = 0.020;   // Skinnier
+        const height = 0.055;  // Longer (to sit between panels)
         
         // Ship body - elongated hexagonal shape (tall and thin)
         const pts = [
@@ -438,17 +441,17 @@ class SolarProgram {
     drawPanels() {
         const shipX = this.ship.x;
         const shipY = this.ship.y;
-        const panelLength = 0.05;   // Long side (perpendicular to arrow)
-        const panelWidth = 0.012;   // Short side (parallel to arrow)
-        const arrowLen = 0.035;
+        const panelLength = 0.04;   // Long side (perpendicular to arrow)
+        const panelWidth = 0.010;   // Short side (parallel to arrow)
+        const arrowLen = 0.028;
         
         // Panel positions relative to ship
         // Sun is on LEFT, so offline panels face left, online panels face right
         const panelOffsets = [
-            { dx: -0.05, dy: 0.05 },   // Panel 1 - left top (OFFLINE, faces sun)
-            { dx: -0.05, dy: -0.05 },  // Panel 2 - left bottom (OFFLINE, faces sun)
-            { dx: 0.05, dy: 0.05 },    // Panel 3 - right top (online, faces away)
-            { dx: 0.05, dy: -0.05 }    // Panel 4 - right bottom (online, faces away)
+            { dx: -0.04, dy: 0.04 },   // Panel 1 - left top (OFFLINE, faces sun)
+            { dx: -0.04, dy: -0.04 },  // Panel 2 - left bottom (OFFLINE, faces sun)
+            { dx: 0.04, dy: 0.04 },    // Panel 3 - right top (online, faces away)
+            { dx: 0.04, dy: -0.04 }    // Panel 4 - right bottom (online, faces away)
         ];
         
         for (let i = 0; i < 4; i++) {
@@ -526,7 +529,7 @@ class SolarProgram {
             
             // Selected panel indicator (blinking bracket)
             if (i === this.selectedPanel && this.blinkOn) {
-                const bracketSize = 0.025;
+                const bracketSize = 0.020;
                 this.segments.push([px - bracketSize, py - bracketSize, px - bracketSize, py + bracketSize]);
                 this.segments.push([px - bracketSize, py + bracketSize, px + bracketSize, py + bracketSize]);
                 this.segments.push([px + bracketSize, py + bracketSize, px + bracketSize, py - bracketSize]);
@@ -536,41 +539,64 @@ class SolarProgram {
             // Panel number label (to the side of each panel)
             // Offline panels (1,2) on left: label further left
             // Online panels (3,4) on right: label further right
-            const labelX = panel.offline ? px - 0.04 : px + 0.04;
+            const labelX = panel.offline ? px - 0.035 : px + 0.035;
             this.drawText((i + 1).toString(), labelX, py);
         }
     }
     
     drawStatusPanel() {
-        const y = 0.18;
-        const lineHeight = 0.04;
+        const y = 0.22;
+        const lineHeight = 0.045;
+        const charWidth = 0.018;
+        const charHeight = 0.025;
+        const leftCol = 0.05;
+        const rightCol = 0.50;
         
         // Separator line
-        this.segments.push([0.05, 0.22, 0.95, 0.22]);
+        this.segments.push([0.05, 0.26, 0.95, 0.26]);
         
-        // Selected panel indicator
-        const selectedLabel = this.panels[this.selectedPanel].offline 
-            ? 'PANEL ' + (this.selectedPanel + 1) + ' [OFFLINE]'
-            : 'PANEL ' + (this.selectedPanel + 1);
-        this.drawText('SELECTED: ' + selectedLabel, 0.05, y);
-        
-        // Panel status row 1
+        // LEFT COLUMN: Panel statuses (stacked vertically)
         const p1Status = 'PANEL 1: OFFLINE';
         const p2Status = 'PANEL 2: OFFLINE';
-        this.drawText(p1Status, 0.05, y - lineHeight);
-        this.drawText(p2Status, 0.50, y - lineHeight);
-        
-        // Panel status row 2
         const p3Status = 'PANEL 3: ' + this.panels[2].power.toFixed(1) + '%';
         const p4Status = 'PANEL 4: ' + this.panels[3].power.toFixed(1) + '%';
-        this.drawText(p3Status, 0.05, y - lineHeight * 2);
-        this.drawText(p4Status, 0.50, y - lineHeight * 2);
         
-        // Average power and status
+        this.drawText(p1Status, leftCol, y);
+        this.drawText(p2Status, leftCol, y - lineHeight);
+        this.drawText(p3Status, leftCol, y - lineHeight * 2);
+        this.drawText(p4Status, leftCol, y - lineHeight * 3);
+        
+        // Panel positions for selection box
+        const panelPositions = [
+            { x: leftCol, y: y },                    // Panel 1
+            { x: leftCol, y: y - lineHeight },       // Panel 2
+            { x: leftCol, y: y - lineHeight * 2 },   // Panel 3
+            { x: leftCol, y: y - lineHeight * 3 }    // Panel 4
+        ];
+        
+        // Draw selection box around selected panel (blinking)
+        if (this.blinkOn) {
+            const pos = panelPositions[this.selectedPanel];
+            const boxPad = 0.008;
+            const boxWidth = charWidth * 17 + boxPad * 2;  // Fits "PANEL 1: OFFLINE"
+            const boxHeight = charHeight + boxPad * 2;
+            
+            const bx = pos.x - boxPad;
+            const by = pos.y - boxPad;
+            this.segments.push([bx, by, bx + boxWidth, by]);
+            this.segments.push([bx + boxWidth, by, bx + boxWidth, by + boxHeight]);
+            this.segments.push([bx + boxWidth, by + boxHeight, bx, by + boxHeight]);
+            this.segments.push([bx, by + boxHeight, bx, by]);
+        }
+        
+        // RIGHT COLUMN: Power status and controls
         const avgPower = GameState.powerLevel;
         const status = avgPower >= SOLAR_POWER_CRITICAL ? 'LOW' : 'CRITICAL';
-        const powerText = 'AVG POWER: ' + avgPower.toFixed(2) + '% [' + status + ']';
-        this.drawText(powerText, 0.05, y - lineHeight * 3);
+        
+        this.drawText('AVG: ' + avgPower.toFixed(1) + '%', rightCol, y);
+        this.drawText('STATUS: ' + status, rightCol, y - lineHeight);
+        this.drawText('U/D: SELECT', rightCol, y - lineHeight * 2);
+        this.drawText('L/R: ROTATE', rightCol, y - lineHeight * 3);
     }
     
     drawText(text, x, y) {
