@@ -196,10 +196,19 @@ MODE: LOW POWER         BUDGET: 12/20
 - Allocate power to drone bay
 - Launch and navigate drone to damage site (DRONE program)
 - Discover something unexpected on hull
+- Exploit CHESS bug to unlock memory access (see: Knight Underpromotion Exploit)
 - Access restricted ship logs (HEXEDIT)
 - *Story beat: The damage wasn't an accident*
 
 **New programs:** DRONE, HEXEDIT
+
+**HEXEDIT Unlock Sequence:**
+The player needs to access restricted memory to read ship logs, but the system is locked down. Eliza mentions the CHESS program was written by a bored crew member and "probably has bugs." The player must:
+1. Play CHESS and reach a position where knight underpromotion is possible
+2. Perform the underpromotion (promote pawn to knight instead of queen)
+3. This triggers a "memory allocation error" - the CHESS program didn't handle this edge case
+4. The error message reveals memory addresses, giving the player a foothold
+5. HEXEDIT becomes available - born from exploiting the bug
 
 ---
 
@@ -394,6 +403,66 @@ To unlock a door, you need:
 
 ---
 
+### 5b. Knight Underpromotion Exploit (HEXEDIT Unlock)
+
+**The fun:** Discovering a "real" exploit, exploiting developer oversight, meta-gaming
+
+**The Setup:**
+You need to access restricted ship memory to read classified logs, but the system won't let you. Eliza mentions the CHESS program was hastily written by a bored crew member during the voyage - "probably full of bugs, honestly." This is the hint.
+
+**The Puzzle:**
+Most chess programs don't properly handle pawn underpromotion (promoting to knight, rook, or bishop instead of queen). In this game's fictional universe, the lazy programmer didn't implement it at all - they assumed players would always pick queen.
+
+**Core Loop:**
+1. Play CHESS until you can promote a pawn
+2. Notice promotion only offers Queen (the "bug")
+3. Try to select Knight anyway (cycle through options, or press 'N')
+4. The game attempts to allocate memory for a piece type that doesn't exist
+5. MEMORY ALLOCATION FAULT displays with scrolling hex
+6. The error dump accidentally reveals system memory addresses
+7. HEXEDIT program becomes available - "Access granted through fault handler"
+
+**Why Knight Specifically:**
+- Knight underpromotion is the most common "real" underpromotion in actual chess
+- In some positions, knight promotion gives immediate checkmate (Queen can't do that)
+- It rewards players who actually know chess strategy
+- If player doesn't know about underpromotion, Eliza can hint: "The Sorcerer never expected anyone to want anything less than a Queen..."
+
+**The Fake Memory Leak:**
+When the exploit triggers:
+```
+═══════════════════════════════════════
+    CHESS v2.1 - CRITICAL ERROR
+═══════════════════════════════════════
+PIECE_TYPE: 0x07 (UNDEFINED)
+ATTEMPTING ALLOCATION AT: 0x7F3A...
+
+STACK TRACE:
+  promote_pawn() +0x4A
+  handle_move() +0x1C2
+  >>> FAULT: NO HANDLER FOR TYPE 0x07
+
+DUMPING ADJACENT MEMORY...
+  0x7F38: 43 4F 4D 4D  [COMM]
+  0x7F3C: 4C 4F 47 53  [LOGS]
+  0x7F40: 52 45 53 54  [REST]
+  0x7F44: 52 49 43 54  [RICT]
+
+FAULT HANDLER GRANTING DEBUG ACCESS...
+>>> NEW PROGRAM AVAILABLE: HEXEDIT
+═══════════════════════════════════════
+```
+
+**What makes it satisfying:**
+- Feels like discovering a REAL exploit
+- Rewards chess knowledge (or Eliza hints for others)
+- The crash dump looks authentically technical
+- Gives narrative reason for why hacking tools exist
+- Player earns access through cleverness, not just progression
+- The memory dump teases "RESTRICTED COMM LOGS" - immediate motivation to use HEXEDIT
+
+---
+
 ### 6. Power Routing (Original Brainstorm)
 
 **The fun:** Resource puzzle, trade-offs, making hard choices
@@ -513,7 +582,7 @@ This connects hacking and power naturally:
 |---------|------------------|-------------------------|
 | ROCKS | Arcade game - shoot asteroids | Generate large numerical values via score |
 | MOONTAXI | Arcade game - ferry passengers | Generate text sequences via delivery order |
-| CHESS | Strategy game vs AI | Generate small integers (1-4) via difficulty |
+| CHESS | Strategy game vs AI | Generate small integers (1-4) via difficulty; Knight underpromotion exploit unlocks HEXEDIT |
 | ELIZA | Chat with stasis bay AI | Story driver, hints, emotional anchor |
 | STATUS | Life support display | Shows power state, hull breach, system health |
 | ANALYZER | FFT spectrum analyzer | Decode alien signals, find frequencies |
@@ -530,7 +599,7 @@ This connects hacking and power naturally:
 | Phase 2 | DEFENSE | Point defense - clear debris, threats |
 | Phase 3 | ANALYZER | Decode signals |
 | Phase 5 | DRONE | External inspection |
-| Phase 5 | HEXEDIT | Access restricted data |
+| Phase 5 | HEXEDIT | Access restricted data (unlocked via CHESS exploit) |
 | Phase 6 | SIGNAL, PROBE | Communicate, navigate |
 
 **Reused programs:**
@@ -539,8 +608,36 @@ This connects hacking and power naturally:
 
 **Arcade Games (ROCKS, MOONTAXI, CHESS):**
 - Unlock gradually as "entertainment" / stress relief
+- CHESS exploit (knight underpromotion) unlocks HEXEDIT itself
 - Become puzzle *tools* when HEXEDIT introduces memory hacking
 - Satisfying "aha" when player realizes games generate values for hacking
+
+---
+
+## Ideas to Explore
+
+Half-baked concepts that might become puzzles:
+
+### Cipher Decoding (Transposition/Rotation)
+
+Receive encoded messages that need manual decryption. Classic cipher techniques:
+- **Rotation (Caesar cipher):** Shift letters by N positions (ROT13, etc.)
+- **Transposition:** Letters are scrambled by position (rail fence, columnar)
+- **Combined:** Rotate first, then transpose (or vice versa)
+
+Could be used for:
+- Decoding intercepted transmissions
+- Reading corrupted ship logs
+- Alien messages that use human ciphers (why would they know these? mystery hook?)
+- Emergency codes from other survivors
+
+Interface ideas:
+- Show ciphertext on oscilloscope as scrolling characters
+- Knobs to adjust rotation amount, see text shift in real-time
+- Grid view for transposition puzzles
+- Frequency analysis display (letter distribution histogram)
+
+**Needs more thought:** What makes this fun vs. tedious? How does it fit the oscilloscope aesthetic?
 
 ---
 
@@ -553,6 +650,7 @@ These need to be figured out during implementation:
 3. **What's on the hull?** Alien device? Sabotage evidence? The mystery hook.
 4. **Alien motivation:** Why are they helping? Revealed at end or earlier?
 5. **Final resolution:** Rescue arrives? You reach safety? The answer to the mystery?
+6. **Cipher puzzles:** Where do they fit narratively? Who's sending encoded messages and why?
 
 ---
 
